@@ -61,6 +61,34 @@ export async function getMarketPositions(marketKey: string): Promise<MarketPosit
   }
 }
 
+export interface MarketPositionsBulkResult {
+  byMarket: Map<string, MarketPositionsPage>
+  failedMarkets: string[]
+}
+
+/**
+ * Fetch one-page samples for several markets in parallel with partial-data
+ * tolerance. A single market timeout/failure does not blank the rest.
+ */
+export async function getMarketPositionsBulk(
+  marketKeys: string[],
+): Promise<MarketPositionsBulkResult> {
+  const settled = await Promise.allSettled(marketKeys.map(getMarketPositions))
+  const byMarket = new Map<string, MarketPositionsPage>()
+  const failedMarkets: string[] = []
+  settled.forEach((r, i) => {
+    const mk = marketKeys[i]!
+    if (r.status === "fulfilled") {
+      byMarket.set(mk, r.value)
+    } else {
+      failedMarkets.push(mk)
+      const reason = r.reason instanceof Error ? r.reason.message : String(r.reason)
+      console.warn(`[ethena-flow-monitor] market fetch failed for ${mk}: ${reason}`)
+    }
+  })
+  return { byMarket, failedMarkets }
+}
+
 export interface EthenaPositionsResult {
   rows: UserPositionRow[]
   failedWallets: string[]

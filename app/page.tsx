@@ -3,7 +3,7 @@ import { Header } from "@/components/header"
 import { KpiCard } from "@/components/kpi-card"
 import { KpiStrip } from "@/components/kpi-strip"
 import { FootprintTable } from "@/components/footprint-table"
-import { fmtUsd } from "@/lib/format"
+import { fmtUsd, fmtPct } from "@/lib/format"
 
 export const revalidate = 300
 // View A walks every borrower across every market Ethena touches; this
@@ -11,7 +11,8 @@ export const revalidate = 300
 export const maxDuration = 90
 
 export default async function Page() {
-  const { rows, freshness, failedWallets } = await loadFootprint()
+  const { rows, freshness, failedWallets, weightedRecursion, weightedRecursionApprox } =
+    await loadFootprint()
   const totalSupplied = rows
     .filter((r) => !r.isAnomalyBorrow)
     .reduce((a, r) => a + r.ethenaSuppliedUsd, 0)
@@ -31,6 +32,16 @@ export default async function Page() {
           <KpiCard label="Reserves touched" value={String(reserveCount)} />
           <KpiCard label="Chains active" value={String(chainCount)} />
           <KpiCard label="Borrow anomalies" value={String(anomalyCount)} />
+          <KpiCard
+            label="Weighted recursion"
+            value={fmtPct(weightedRecursion)}
+            subValue={
+              weightedRecursionApprox
+                ? "$-weighted, approx — sampled"
+                : "$-weighted across reserves"
+            }
+            tone="recursion"
+          />
         </KpiStrip>
         <div className="mt-6">
           <FootprintTable rows={rows} />

@@ -31,7 +31,7 @@ export function RecursionPanel({
         Borrow recursion
       </div>
       <div className="mb-4 text-2xl">
-        <span className="text-[var(--color-recursion)]">
+        <span className="text-[var(--color-text)]">
           {fmtPct(ethenaCollateralBorrowShare)}
         </span>
         <span className="ml-2 text-sm text-[var(--color-text-muted)]">

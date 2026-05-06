@@ -1,6 +1,7 @@
-import { getEthenaPositions } from "@/lib/tokenlogic/positions"
+import { getEthenaPositions, getMarketPositionsBulk } from "@/lib/tokenlogic/positions"
 import { getMarketAggregates, type MarketReserve } from "@/lib/tokenlogic/markets"
 import { isEthenaWallet } from "@/config/wallets"
+import { computeReserveRecursion } from "@/lib/recursion/score"
 
 export interface FootprintRow {
   chain: string
@@ -9,6 +10,8 @@ export interface FootprintRow {
   ethenaSuppliedUsd: number
   reserveAggregateDeposits?: number
   shareOfReserve?: number
+  recursionScore?: number
+  recursionApprox?: boolean
   isAnomalyBorrow: boolean
 }
 
@@ -16,16 +19,15 @@ export interface FootprintResult {
   rows: FootprintRow[]
   freshness: string | undefined
   failedWallets: string[]
+  failedMarkets: string[]
+  /** $-weighted average recursion score across all reserves where Ethena has
+   * supply: Σ(supply_i × recursion_i) / Σ(supply_i). */
+  weightedRecursion: number
+  /** Whether the weighted average is approximate (any contributing reserve
+   * was sampled from the first page only). */
+  weightedRecursionApprox: boolean
 }
 
-/**
- * View A loader — fast path. Computes Ethena's per-reserve footprint and
- * concentration share against the markets-API aggregates. Recursion score
- * is intentionally NOT computed here: it requires walking every borrower in
- * the market (~25k+ rows on Ethereum/Base), which exceeds Vercel Hobby tier
- * function timeouts. Recursion is computed per-reserve on the View B page
- * (one market at a time) where the data volume is bounded.
- */
 export async function loadFootprint(): Promise<FootprintResult> {
   const [{ rows: positions, failedWallets }, aggregatesByKey] = await Promise.all([
     getEthenaPositions(),
@@ -37,9 +39,9 @@ export async function loadFootprint(): Promise<FootprintResult> {
     aggBySymbol.set(`${agg.market_key}:${agg.reserve_symbol}`, agg)
   }
 
-  // Aggregate Ethena supply / borrow per (marketKey, reserveSymbol).
   const ethenaSupplyTotalByReserve = new Map<string, number>()
   const ethenaBorrowTotalByReserve = new Map<string, number>()
+  const ethenaSupplyByUserKey = new Map<string, Map<string, number>>()
   const reserveMeta = new Map<string, { chain: string; marketKey: string; reserveSymbol: string }>()
 
   for (const p of positions) {
@@ -48,6 +50,12 @@ export async function loadFootprint(): Promise<FootprintResult> {
       const k = `${p.marketKey}:${s.symbol}`
       reserveMeta.set(k, { chain: p.chain, marketKey: p.marketKey, reserveSymbol: s.symbol })
       ethenaSupplyTotalByReserve.set(k, (ethenaSupplyTotalByReserve.get(k) ?? 0) + s.amountUsd)
+      let inner = ethenaSupplyByUserKey.get(k)
+      if (!inner) {
+        inner = new Map()
+        ethenaSupplyByUserKey.set(k, inner)
+      }
+      inner.set(p.userAddress, (inner.get(p.userAddress) ?? 0) + s.amountUsd)
     }
     for (const b of p.borrows) {
       const k = `${p.marketKey}:${b.symbol}`
@@ -56,13 +64,46 @@ export async function loadFootprint(): Promise<FootprintResult> {
     }
   }
 
-  // Reserve-level dedup: one row per (marketKey, reserveSymbol). Multi-wallet
-  // supplies sum into a single Ethena $ figure (matches spec §View A).
+  // Fan out one-page samples for every market Ethena touches. This is the
+  // cap that keeps View A under Vercel Hobby's 10s function timeout — full
+  // pagination per market would take 30-60s on busy markets.
+  const ethenaMarkets = Array.from(
+    new Set(
+      positions
+        .filter((p) => isEthenaWallet(p.userAddress))
+        .map((p) => p.marketKey),
+    ),
+  )
+  const { byMarket: marketSamples, failedMarkets } = await getMarketPositionsBulk(ethenaMarkets)
+
+  function computeRecursion(marketKey: string, reserveSymbol: string) {
+    const agg = aggBySymbol.get(`${marketKey}:${reserveSymbol}`)
+    const sample = marketSamples.get(marketKey)
+    if (!agg || !sample) return undefined
+    const ethenaSupplyByUser =
+      ethenaSupplyByUserKey.get(`${marketKey}:${reserveSymbol}`) ?? new Map()
+    const nonEthenaRows = sample.rows.filter((r) => !isEthenaWallet(r.userAddress))
+    const r = computeReserveRecursion({
+      reserveSymbol,
+      marketKey,
+      rows: nonEthenaRows,
+      aggregateDeposits: agg.deposits,
+      aggregateBorrows: agg.borrows,
+      ethenaSupplyByUser,
+    })
+    return { score: r.recursionScore, approx: sample.truncated }
+  }
+
   const out: FootprintRow[] = []
+  let weightedNumerator = 0
+  let weightedDenominator = 0
+  let weightedAnyApprox = false
+
   for (const [k, meta] of reserveMeta.entries()) {
     const supplied = ethenaSupplyTotalByReserve.get(k) ?? 0
     const borrowed = ethenaBorrowTotalByReserve.get(k) ?? 0
     const agg = aggBySymbol.get(k)
+    const recursion = supplied > 0 ? computeRecursion(meta.marketKey, meta.reserveSymbol) : undefined
 
     if (supplied > 0) {
       out.push({
@@ -72,8 +113,15 @@ export async function loadFootprint(): Promise<FootprintResult> {
         ethenaSuppliedUsd: supplied,
         reserveAggregateDeposits: agg?.deposits,
         shareOfReserve: agg && agg.deposits > 0 ? supplied / agg.deposits : undefined,
+        recursionScore: recursion?.score,
+        recursionApprox: recursion?.approx,
         isAnomalyBorrow: false,
       })
+      if (recursion) {
+        weightedNumerator += supplied * recursion.score
+        weightedDenominator += supplied
+        if (recursion.approx) weightedAnyApprox = true
+      }
     }
     if (borrowed > 0) {
       out.push({
@@ -86,14 +134,26 @@ export async function loadFootprint(): Promise<FootprintResult> {
     }
   }
 
-  const rows = out.sort(
-    (a, b) => Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd),
-  )
+  const rows = out.sort((a, b) => {
+    const ra = a.recursionScore ?? 0
+    const rb = b.recursionScore ?? 0
+    if (rb !== ra) return rb - ra
+    return Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd)
+  })
 
   const freshness = positions
     .map((p) => p.latestBlockDay)
     .sort()
     .pop()
 
-  return { rows, freshness, failedWallets }
+  const weightedRecursion = weightedDenominator > 0 ? weightedNumerator / weightedDenominator : 0
+
+  return {
+    rows,
+    freshness,
+    failedWallets,
+    failedMarkets,
+    weightedRecursion,
+    weightedRecursionApprox: weightedAnyApprox,
+  }
 }

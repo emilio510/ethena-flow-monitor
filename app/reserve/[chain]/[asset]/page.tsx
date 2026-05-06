@@ -65,6 +65,7 @@ export default async function Page({
             label="Recursion score"
             value={fmtPct(view.recursion.recursionScore)}
             subValue={view.recursionApprox ? "approx — sampled" : undefined}
+            tone="recursion"
           />
         </KpiStrip>
 
