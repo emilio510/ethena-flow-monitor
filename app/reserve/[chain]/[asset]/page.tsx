@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation"
-import { loadReserveView } from "@/lib/views/reserve"
+import { loadReserveView, ReserveNotFoundError } from "@/lib/views/reserve"
 import { Header } from "@/components/header"
 import { KpiCard } from "@/components/kpi-card"
 import { KpiStrip } from "@/components/kpi-strip"
@@ -25,17 +25,19 @@ export default async function Page({
   try {
     view = await loadReserveView(chain, symbol)
   } catch (err) {
-    if (err instanceof Error && err.message.startsWith("Reserve not found")) {
-      notFound()
-    }
+    if (err instanceof ReserveNotFoundError) notFound()
     throw err
   }
 
+  // Donut Share column uses the row-attributed total so wedges sum to 100%.
+  // The headline recursion score still uses the markets-API aggregate so the
+  // two numbers can disagree (intentional — see ReserveRecursion docs).
+  const denom = view.recursion.attributedBorrowsTotal
   const breakdown = Array.from(view.recursion.borrowsByCollateral.entries())
     .map(([collateralSymbol, borrowedUsd]) => ({
       collateralSymbol,
       borrowedUsd,
-      shareOfTotal: view.totalBorrowUsd > 0 ? borrowedUsd / view.totalBorrowUsd : 0,
+      shareOfTotal: denom > 0 ? borrowedUsd / denom : 0,
     }))
     .sort((a, b) => b.borrowedUsd - a.borrowedUsd)
 

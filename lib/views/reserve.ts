@@ -4,6 +4,13 @@ import { isEthenaWallet } from "@/config/wallets"
 import { marketKeyForChain, type Chain } from "@/config/markets"
 import { computeReserveRecursion, type ReserveRecursion } from "@/lib/recursion/score"
 
+export class ReserveNotFoundError extends Error {
+  constructor(public marketKey: string, public reserveSymbol: string) {
+    super(`Reserve not found: ${marketKey}/${reserveSymbol}`)
+    this.name = "ReserveNotFoundError"
+  }
+}
+
 export interface DepositorRow {
   userAddress: string
   walletLabel: string | null
@@ -33,7 +40,7 @@ export async function loadReserveView(
   reserveSymbol: string,
 ): Promise<ReserveView> {
   const marketKey = marketKeyForChain(chain)
-  const [marketRows, ethenaRows, aggregatesByKey] = await Promise.all([
+  const [marketRows, { rows: ethenaRows }, aggregatesByKey] = await Promise.all([
     getMarketPositions(marketKey),
     getEthenaPositions(),
     getMarketAggregates(),
@@ -43,7 +50,7 @@ export async function loadReserveView(
     (a) => a.market_key === marketKey && a.reserve_symbol === reserveSymbol,
   )
   if (!aggregate) {
-    throw new Error(`Reserve not found: ${marketKey}/${reserveSymbol}`)
+    throw new ReserveNotFoundError(marketKey, reserveSymbol)
   }
 
   const depositors: DepositorRow[] = []
@@ -61,12 +68,14 @@ export async function loadReserveView(
   depositors.sort((a, b) => b.amountUsd - a.amountUsd)
 
   // Use the markets-API aggregate as the canonical denominator (T1.4).
-  // Falling back to local sum only if aggregate is zero so we don't divide by zero.
-  const localSum = depositors.reduce((a, d) => a + d.amountUsd, 0)
-  const denom = aggregate.deposits > 0 ? aggregate.deposits : localSum > 0 ? localSum : 1
-  const top1 = (depositors[0]?.amountUsd ?? 0) / denom
-  const top5 = depositors.slice(0, 5).reduce((a, d) => a + d.amountUsd, 0) / denom
-  const top10 = depositors.slice(0, 10).reduce((a, d) => a + d.amountUsd, 0) / denom
+  // When the aggregate is zero (empty reserve), every concentration ratio is
+  // zero by definition; never fall back to a local sum that could produce
+  // >100% values.
+  const denom = aggregate.deposits > 0 ? aggregate.deposits : 0
+  const sliceShare = (slice: number) => (denom > 0 ? slice / denom : 0)
+  const top1 = sliceShare(depositors[0]?.amountUsd ?? 0)
+  const top5 = sliceShare(depositors.slice(0, 5).reduce((a, d) => a + d.amountUsd, 0))
+  const top10 = sliceShare(depositors.slice(0, 10).reduce((a, d) => a + d.amountUsd, 0))
 
   const ethenaSupplyByUser = new Map<string, number>()
   for (const row of ethenaRows) {

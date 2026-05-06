@@ -43,8 +43,9 @@ describe("getEthenaPositions", () => {
     vi.stubGlobal("fetch", mockFetch)
     const { getEthenaPositions } = await import("@/lib/tokenlogic/positions")
 
-    const rows = await getEthenaPositions()
-    expect(rows).toHaveLength(11)
+    const result = await getEthenaPositions()
+    expect(result.rows).toHaveLength(11)
+    expect(result.failedWallets).toEqual([])
     expect(mockFetch).toHaveBeenCalledTimes(11)
   })
 })

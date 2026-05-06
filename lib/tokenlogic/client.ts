@@ -4,19 +4,22 @@ const DEFAULT_TIMEOUT_MS = 15_000
 
 /**
  * Error thrown by tlFetch on non-2xx responses.
- * The user-visible `message` only carries status + path so upstream response
- * bodies do not leak into RSC error UIs. Server-side logs can still see the
- * full body via the public `body` property.
+ * The user-visible `message` carries only the status code so neither the
+ * upstream response body nor the internal API path leak into the browser
+ * (error.tsx logs `error.message` to the client console). Server-side
+ * handlers can still inspect `.path` and `.body` for diagnostics.
  */
 export class TokenLogicError extends Error {
   constructor(public status: number, public path: string, public body: string) {
-    super(`TokenLogic API ${status} on ${path}`)
+    super(`TokenLogic API error ${status}`)
+    this.name = "TokenLogicError"
   }
 }
 
 export class TokenLogicTimeoutError extends Error {
   constructor(public path: string, public timeoutMs: number) {
-    super(`TokenLogic API timed out after ${timeoutMs}ms on ${path}`)
+    super(`TokenLogic API timed out after ${timeoutMs}ms`)
+    this.name = "TokenLogicTimeoutError"
   }
 }
 

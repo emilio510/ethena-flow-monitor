@@ -9,6 +9,11 @@ export interface ReserveRecursion {
   ethenaCollateralBorrowShare: number
   recursionScore: number
   borrowsByCollateral: Map<string, number>
+  /** Sum of borrowsByCollateral.values() — the denominator the donut Share
+   * column should use so wedge percentages add up to 100%. May be < the
+   * markets-API aggregateBorrows when Ethena wallets themselves carry
+   * (anomaly) borrows or when paginated coverage is partial. */
+  attributedBorrowsTotal: number
 }
 
 export interface ReserveRecursionInput {
@@ -32,10 +37,12 @@ export function computeReserveRecursion(input: ReserveRecursionInput): ReserveRe
 
   const borrowsByCollateral = new Map<string, number>()
   let ethenaStackBorrowed = 0
+  let attributedBorrowsTotal = 0
 
   for (const row of input.rows) {
     for (const attribution of attributeRow(row)) {
       if (attribution.borrowSymbol !== input.reserveSymbol) continue
+      attributedBorrowsTotal += attribution.borrowedUsd
       const prev = borrowsByCollateral.get(attribution.collateralSymbol) ?? 0
       borrowsByCollateral.set(attribution.collateralSymbol, prev + attribution.borrowedUsd)
       if (isEthenaStack(classify(attribution.collateralSymbol))) {
@@ -56,5 +63,6 @@ export function computeReserveRecursion(input: ReserveRecursionInput): ReserveRe
     ethenaCollateralBorrowShare,
     recursionScore: ethenaSupplyShare * ethenaCollateralBorrowShare,
     borrowsByCollateral,
+    attributedBorrowsTotal,
   }
 }

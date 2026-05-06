@@ -1,8 +1,7 @@
-import { getEthenaPositions, getMarketPositions } from "@/lib/tokenlogic/positions"
+import { getEthenaPositions, getMarketPositionsBulk } from "@/lib/tokenlogic/positions"
 import { getMarketAggregates, type MarketReserve } from "@/lib/tokenlogic/markets"
 import { isEthenaWallet } from "@/config/wallets"
 import { computeReserveRecursion } from "@/lib/recursion/score"
-import type { UserPositionRow } from "@/lib/tokenlogic/schemas"
 
 export interface FootprintRow {
   chain: string
@@ -18,10 +17,12 @@ export interface FootprintRow {
 export interface FootprintResult {
   rows: FootprintRow[]
   freshness: string | undefined
+  failedWallets: string[]
+  failedMarkets: string[]
 }
 
 export async function loadFootprint(): Promise<FootprintResult> {
-  const [positions, aggregatesByKey] = await Promise.all([
+  const [{ rows: positions, failedWallets }, aggregatesByKey] = await Promise.all([
     getEthenaPositions(),
     getMarketAggregates(),
   ])
@@ -31,32 +32,40 @@ export async function loadFootprint(): Promise<FootprintResult> {
     aggBySymbol.set(`${agg.market_key}:${agg.reserve_symbol}`, agg)
   }
 
-  // T4.3 — Compute a recursion score for every (market × reserve) where Ethena has supply.
-  // Fan out market-position fetches in parallel for the markets Ethena touches.
+  // Determine markets Ethena touches and fan out with allSettled — a single
+  // market timeout should not blank the landing page.
   const ethenaMarkets = new Set<string>()
   for (const p of positions) {
     if (isEthenaWallet(p.userAddress)) ethenaMarkets.add(p.marketKey)
   }
-  const marketRowsEntries = await Promise.all(
-    Array.from(ethenaMarkets).map(async (mk) => {
-      const rows = await getMarketPositions(mk)
-      return [mk, rows] as const
-    }),
+  const { byMarket: marketRowsByKey, failedMarkets } = await getMarketPositionsBulk(
+    Array.from(ethenaMarkets),
   )
-  const marketRowsByKey = new Map(marketRowsEntries)
 
-  // Index Ethena supply per (marketKey, reserveSymbol, userAddress) for the score input.
-  const ethenaSupply = new Map<string, Map<string, number>>()
+  // Per-(marketKey, reserveSymbol, userAddress) Ethena supply for the score input,
+  // plus a per-(marketKey, reserveSymbol) total used for reserve-level row dedup.
+  const ethenaSupplyByUserKey = new Map<string, Map<string, number>>()
+  const ethenaSupplyTotalByReserve = new Map<string, number>()
+  const ethenaBorrowTotalByReserve = new Map<string, number>()
+  const reserveMeta = new Map<string, { chain: string; marketKey: string; reserveSymbol: string }>()
+
   for (const p of positions) {
     if (!isEthenaWallet(p.userAddress)) continue
     for (const s of p.supplies) {
       const k = `${p.marketKey}:${s.symbol}`
-      let inner = ethenaSupply.get(k)
+      reserveMeta.set(k, { chain: p.chain, marketKey: p.marketKey, reserveSymbol: s.symbol })
+      let inner = ethenaSupplyByUserKey.get(k)
       if (!inner) {
         inner = new Map()
-        ethenaSupply.set(k, inner)
+        ethenaSupplyByUserKey.set(k, inner)
       }
       inner.set(p.userAddress, (inner.get(p.userAddress) ?? 0) + s.amountUsd)
+      ethenaSupplyTotalByReserve.set(k, (ethenaSupplyTotalByReserve.get(k) ?? 0) + s.amountUsd)
+    }
+    for (const b of p.borrows) {
+      const k = `${p.marketKey}:${b.symbol}`
+      reserveMeta.set(k, { chain: p.chain, marketKey: p.marketKey, reserveSymbol: b.symbol })
+      ethenaBorrowTotalByReserve.set(k, (ethenaBorrowTotalByReserve.get(k) ?? 0) + b.amountUsd)
     }
   }
 
@@ -65,10 +74,9 @@ export async function loadFootprint(): Promise<FootprintResult> {
     if (!agg) return undefined
     const rows = marketRowsByKey.get(marketKey)
     if (!rows) return undefined
-    const ethenaSupplyByUser = ethenaSupply.get(`${marketKey}:${reserveSymbol}`) ?? new Map()
-    const nonEthenaRows: UserPositionRow[] = rows.filter(
-      (r) => !isEthenaWallet(r.userAddress),
-    )
+    const ethenaSupplyByUser =
+      ethenaSupplyByUserKey.get(`${marketKey}:${reserveSymbol}`) ?? new Map()
+    const nonEthenaRows = rows.filter((r) => !isEthenaWallet(r.userAddress))
     return computeReserveRecursion({
       reserveSymbol,
       marketKey,
@@ -79,34 +87,38 @@ export async function loadFootprint(): Promise<FootprintResult> {
     }).recursionScore
   }
 
+  // Reserve-level dedup: one row per (marketKey, reserveSymbol). Multi-wallet
+  // supplies sum into a single Ethena $ figure (matches spec §View A).
   const out: FootprintRow[] = []
-  for (const p of positions) {
-    if (!isEthenaWallet(p.userAddress)) continue
-    for (const supply of p.supplies) {
-      const agg = aggBySymbol.get(`${p.marketKey}:${supply.symbol}`)
+  for (const [k, meta] of reserveMeta.entries()) {
+    const supplied = ethenaSupplyTotalByReserve.get(k) ?? 0
+    const borrowed = ethenaBorrowTotalByReserve.get(k) ?? 0
+    const agg = aggBySymbol.get(k)
+
+    if (supplied > 0) {
       out.push({
-        chain: p.chain,
-        marketKey: p.marketKey,
-        reserveSymbol: supply.symbol,
-        ethenaSuppliedUsd: supply.amountUsd,
+        chain: meta.chain,
+        marketKey: meta.marketKey,
+        reserveSymbol: meta.reserveSymbol,
+        ethenaSuppliedUsd: supplied,
         reserveAggregateDeposits: agg?.deposits,
         shareOfReserve:
-          agg && agg.deposits > 0 ? supply.amountUsd / agg.deposits : undefined,
-        recursionScore: recursionFor(p.marketKey, supply.symbol),
+          agg && agg.deposits > 0 ? supplied / agg.deposits : undefined,
+        recursionScore: recursionFor(meta.marketKey, meta.reserveSymbol),
         isAnomalyBorrow: false,
       })
     }
-    for (const borrow of p.borrows) {
+    if (borrowed > 0) {
       out.push({
-        chain: p.chain,
-        marketKey: p.marketKey,
-        reserveSymbol: borrow.symbol,
-        ethenaSuppliedUsd: -borrow.amountUsd,
+        chain: meta.chain,
+        marketKey: meta.marketKey,
+        reserveSymbol: meta.reserveSymbol,
+        ethenaSuppliedUsd: -borrowed,
         isAnomalyBorrow: true,
       })
     }
   }
-  // Spec §3: recursion score is the primary sort key; fall back to $ size for rows w/o a score.
+
   const rows = out.sort((a, b) => {
     const ra = a.recursionScore ?? 0
     const rb = b.recursionScore ?? 0
@@ -114,12 +126,10 @@ export async function loadFootprint(): Promise<FootprintResult> {
     return Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd)
   })
 
-  // T2.6 — surface staleness via the most recent latest_block_day across all
-  // Ethena positions. Lets the user see if the BigQuery pipeline is stalled.
   const freshness = positions
     .map((p) => p.latestBlockDay)
     .sort()
     .pop()
 
-  return { rows, freshness }
+  return { rows, freshness, failedWallets, failedMarkets }
 }
