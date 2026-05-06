@@ -37,10 +37,17 @@ const RawRow = z.object({
 
 function zip(symbols: string[], amounts: number[], amountsUsd: number[]): Reserve[] {
   if (symbols.length === 0) return []
+  // T2.5 — refuse to silently zero-fill mismatched arrays; that would hide
+  // schema drift and silently produce wrong totals downstream.
+  if (amounts.length !== symbols.length || amountsUsd.length !== symbols.length) {
+    throw new Error(
+      `User-positions row has misaligned arrays: symbols=${symbols.length}, amounts=${amounts.length}, amountsUsd=${amountsUsd.length}`,
+    )
+  }
   return symbols.map((symbol, i) => ({
     symbol,
-    amount: amounts[i] ?? 0,
-    amountUsd: amountsUsd[i] ?? 0,
+    amount: amounts[i]!,
+    amountUsd: amountsUsd[i]!,
   }))
 }
 
