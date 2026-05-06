@@ -1,7 +1,6 @@
-import { getEthenaPositions, getMarketPositionsBulk } from "@/lib/tokenlogic/positions"
+import { getEthenaPositions } from "@/lib/tokenlogic/positions"
 import { getMarketAggregates, type MarketReserve } from "@/lib/tokenlogic/markets"
 import { isEthenaWallet } from "@/config/wallets"
-import { computeReserveRecursion } from "@/lib/recursion/score"
 
 export interface FootprintRow {
   chain: string
@@ -10,7 +9,6 @@ export interface FootprintRow {
   ethenaSuppliedUsd: number
   reserveAggregateDeposits?: number
   shareOfReserve?: number
-  recursionScore?: number
   isAnomalyBorrow: boolean
 }
 
@@ -18,9 +16,16 @@ export interface FootprintResult {
   rows: FootprintRow[]
   freshness: string | undefined
   failedWallets: string[]
-  failedMarkets: string[]
 }
 
+/**
+ * View A loader — fast path. Computes Ethena's per-reserve footprint and
+ * concentration share against the markets-API aggregates. Recursion score
+ * is intentionally NOT computed here: it requires walking every borrower in
+ * the market (~25k+ rows on Ethereum/Base), which exceeds Vercel Hobby tier
+ * function timeouts. Recursion is computed per-reserve on the View B page
+ * (one market at a time) where the data volume is bounded.
+ */
 export async function loadFootprint(): Promise<FootprintResult> {
   const [{ rows: positions, failedWallets }, aggregatesByKey] = await Promise.all([
     getEthenaPositions(),
@@ -32,19 +37,7 @@ export async function loadFootprint(): Promise<FootprintResult> {
     aggBySymbol.set(`${agg.market_key}:${agg.reserve_symbol}`, agg)
   }
 
-  // Determine markets Ethena touches and fan out with allSettled — a single
-  // market timeout should not blank the landing page.
-  const ethenaMarkets = new Set<string>()
-  for (const p of positions) {
-    if (isEthenaWallet(p.userAddress)) ethenaMarkets.add(p.marketKey)
-  }
-  const { byMarket: marketRowsByKey, failedMarkets } = await getMarketPositionsBulk(
-    Array.from(ethenaMarkets),
-  )
-
-  // Per-(marketKey, reserveSymbol, userAddress) Ethena supply for the score input,
-  // plus a per-(marketKey, reserveSymbol) total used for reserve-level row dedup.
-  const ethenaSupplyByUserKey = new Map<string, Map<string, number>>()
+  // Aggregate Ethena supply / borrow per (marketKey, reserveSymbol).
   const ethenaSupplyTotalByReserve = new Map<string, number>()
   const ethenaBorrowTotalByReserve = new Map<string, number>()
   const reserveMeta = new Map<string, { chain: string; marketKey: string; reserveSymbol: string }>()
@@ -54,12 +47,6 @@ export async function loadFootprint(): Promise<FootprintResult> {
     for (const s of p.supplies) {
       const k = `${p.marketKey}:${s.symbol}`
       reserveMeta.set(k, { chain: p.chain, marketKey: p.marketKey, reserveSymbol: s.symbol })
-      let inner = ethenaSupplyByUserKey.get(k)
-      if (!inner) {
-        inner = new Map()
-        ethenaSupplyByUserKey.set(k, inner)
-      }
-      inner.set(p.userAddress, (inner.get(p.userAddress) ?? 0) + s.amountUsd)
       ethenaSupplyTotalByReserve.set(k, (ethenaSupplyTotalByReserve.get(k) ?? 0) + s.amountUsd)
     }
     for (const b of p.borrows) {
@@ -67,24 +54,6 @@ export async function loadFootprint(): Promise<FootprintResult> {
       reserveMeta.set(k, { chain: p.chain, marketKey: p.marketKey, reserveSymbol: b.symbol })
       ethenaBorrowTotalByReserve.set(k, (ethenaBorrowTotalByReserve.get(k) ?? 0) + b.amountUsd)
     }
-  }
-
-  function recursionFor(marketKey: string, reserveSymbol: string): number | undefined {
-    const agg = aggBySymbol.get(`${marketKey}:${reserveSymbol}`)
-    if (!agg) return undefined
-    const rows = marketRowsByKey.get(marketKey)
-    if (!rows) return undefined
-    const ethenaSupplyByUser =
-      ethenaSupplyByUserKey.get(`${marketKey}:${reserveSymbol}`) ?? new Map()
-    const nonEthenaRows = rows.filter((r) => !isEthenaWallet(r.userAddress))
-    return computeReserveRecursion({
-      reserveSymbol,
-      marketKey,
-      rows: nonEthenaRows,
-      aggregateDeposits: agg.deposits,
-      aggregateBorrows: agg.borrows,
-      ethenaSupplyByUser,
-    }).recursionScore
   }
 
   // Reserve-level dedup: one row per (marketKey, reserveSymbol). Multi-wallet
@@ -102,9 +71,7 @@ export async function loadFootprint(): Promise<FootprintResult> {
         reserveSymbol: meta.reserveSymbol,
         ethenaSuppliedUsd: supplied,
         reserveAggregateDeposits: agg?.deposits,
-        shareOfReserve:
-          agg && agg.deposits > 0 ? supplied / agg.deposits : undefined,
-        recursionScore: recursionFor(meta.marketKey, meta.reserveSymbol),
+        shareOfReserve: agg && agg.deposits > 0 ? supplied / agg.deposits : undefined,
         isAnomalyBorrow: false,
       })
     }
@@ -119,17 +86,14 @@ export async function loadFootprint(): Promise<FootprintResult> {
     }
   }
 
-  const rows = out.sort((a, b) => {
-    const ra = a.recursionScore ?? 0
-    const rb = b.recursionScore ?? 0
-    if (rb !== ra) return rb - ra
-    return Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd)
-  })
+  const rows = out.sort(
+    (a, b) => Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd),
+  )
 
   const freshness = positions
     .map((p) => p.latestBlockDay)
     .sort()
     .pop()
 
-  return { rows, freshness, failedWallets, failedMarkets }
+  return { rows, freshness, failedWallets }
 }

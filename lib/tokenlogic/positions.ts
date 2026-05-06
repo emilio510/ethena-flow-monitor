@@ -35,15 +35,30 @@ export async function getPositionsByUser(userAddress: string): Promise<UserPosit
   )
 }
 
-export async function getMarketPositions(marketKey: string): Promise<UserPositionRow[]> {
-  // T2.1 — bounded pagination prevents an infinite loop if the API misbehaves.
-  // marketKey can flow from the API in View A's footprint computation; encode defensively.
+export interface MarketPositionsPage {
+  rows: UserPositionRow[]
+  /** True when the API returned a full page; the recursion compute is then
+   * approximate (sampled from the first page only). */
+  truncated: boolean
+}
+
+/**
+ * Fetch one page (up to PAGE_SIZE rows) of borrowers in a market. We do NOT
+ * paginate the full set: walking ethereum or base markets takes 25-60s and
+ * exceeds Vercel Hobby tier's 10s function timeout. The recursion math
+ * accepts that the first page is a sample and the result is approximate
+ * for very large markets.
+ */
+export async function getMarketPositions(marketKey: string): Promise<MarketPositionsPage> {
   const enc = encodeURIComponent(marketKey)
-  return paginate(
-    `market_key=${marketKey}`,
-    (offset) =>
-      `/internal/aave/user-positions/latest?market_key=${enc}&limit=${PAGE_SIZE}&offset=${offset}`,
+  const raw = await tlFetch(
+    `/internal/aave/user-positions/latest?market_key=${enc}&limit=${PAGE_SIZE}`,
   )
+  const parsed = UserPositionsResponse.parse(raw)
+  return {
+    rows: parsed.data,
+    truncated: parsed.data.length >= PAGE_SIZE,
+  }
 }
 
 export interface EthenaPositionsResult {
@@ -76,34 +91,5 @@ export async function getEthenaPositions(): Promise<EthenaPositionsResult> {
     throw new Error("All Ethena position fetches failed — TokenLogic API likely unavailable")
   }
   return { rows, failedWallets }
-}
-
-export interface MarketPositionsResult {
-  byMarket: Map<string, UserPositionRow[]>
-  failedMarkets: string[]
-}
-
-/**
- * Fetch positions for several markets in parallel with the same partial-data
- * semantics as getEthenaPositions. Used by View A to compute per-reserve
- * recursion across the markets where Ethena has a footprint.
- */
-export async function getMarketPositionsBulk(
-  marketKeys: string[],
-): Promise<MarketPositionsResult> {
-  const settled = await Promise.allSettled(marketKeys.map(getMarketPositions))
-  const byMarket = new Map<string, UserPositionRow[]>()
-  const failedMarkets: string[] = []
-  settled.forEach((r, i) => {
-    const mk = marketKeys[i]!
-    if (r.status === "fulfilled") {
-      byMarket.set(mk, r.value)
-    } else {
-      failedMarkets.push(mk)
-      const reason = r.reason instanceof Error ? r.reason.message : String(r.reason)
-      console.warn(`[ethena-flow-monitor] market fetch failed for ${mk}: ${reason}`)
-    }
-  })
-  return { byMarket, failedMarkets }
 }
 

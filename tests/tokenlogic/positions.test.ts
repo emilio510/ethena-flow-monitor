@@ -50,27 +50,37 @@ describe("getEthenaPositions", () => {
   })
 })
 
-describe("getMarketPositions", () => {
-  it("paginates until exhausted", async () => {
-    const PAGE_SIZE = 10_000
-    const page1 = Array.from({ length: PAGE_SIZE }, (_, i) => ({
+describe("getMarketPositions (single-page sample)", () => {
+  it("returns rows + truncated=false when API has fewer than PAGE_SIZE rows", async () => {
+    const data = Array.from({ length: 47 }, (_, i) => ({
       ...baseRow,
       user_address: `0x${i.toString(16).padStart(40, "0")}`,
     }))
-    const page2 = Array.from({ length: 47 }, (_, i) => ({
-      ...baseRow,
-      user_address: `0x${(PAGE_SIZE + i).toString(16).padStart(40, "0")}`,
-    }))
-    const mockFetch = vi.fn().mockImplementation((url: string) => {
-      const offset = Number(new URL(url).searchParams.get("offset") ?? "0")
-      const data = offset === 0 ? page1 : offset === PAGE_SIZE ? page2 : []
-      return Promise.resolve({ ok: true, status: 200, json: async () => ({ data }) })
-    })
-    vi.stubGlobal("fetch", mockFetch)
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ data }) }),
+    )
     const { getMarketPositions } = await import("@/lib/tokenlogic/positions")
 
-    const rows = await getMarketPositions("plasma-core-v3")
-    expect(rows).toHaveLength(PAGE_SIZE + 47)
-    expect(mockFetch).toHaveBeenCalledTimes(2)
+    const result = await getMarketPositions("plasma-core-v3")
+    expect(result.rows).toHaveLength(47)
+    expect(result.truncated).toBe(false)
+  })
+
+  it("returns truncated=true when API returns a full page", async () => {
+    const PAGE_SIZE = 10_000
+    const data = Array.from({ length: PAGE_SIZE }, (_, i) => ({
+      ...baseRow,
+      user_address: `0x${i.toString(16).padStart(40, "0")}`,
+    }))
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({ ok: true, status: 200, json: async () => ({ data }) }),
+    )
+    const { getMarketPositions } = await import("@/lib/tokenlogic/positions")
+
+    const result = await getMarketPositions("ethereum-core-v3")
+    expect(result.rows).toHaveLength(PAGE_SIZE)
+    expect(result.truncated).toBe(true)
   })
 })

@@ -61,7 +61,11 @@ export default async function Page({
             value={`${fmtPct(view.supplyApy)} / ${fmtPct(view.borrowApy)}`}
           />
           <KpiCard label="Borrow cap" value={fmtUsd(view.borrowCap)} />
-          <KpiCard label="Recursion score" value={fmtPct(view.recursion.recursionScore)} />
+          <KpiCard
+            label="Recursion score"
+            value={fmtPct(view.recursion.recursionScore)}
+            subValue={view.recursionApprox ? "approx — sampled" : undefined}
+          />
         </KpiStrip>
 
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">

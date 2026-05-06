@@ -33,6 +33,9 @@ export interface ReserveView {
   concentration: { top1: number; top5: number; top10: number }
   recursion: ReserveRecursion
   freshness?: string
+  /** True when the borrower set was sampled (large market exceeded one page).
+   * Recursion + concentration are then approximate. */
+  recursionApprox: boolean
 }
 
 export async function loadReserveView(
@@ -40,11 +43,9 @@ export async function loadReserveView(
   reserveSymbol: string,
 ): Promise<ReserveView> {
   const marketKey = marketKeyForChain(chain)
-  const [marketRows, { rows: ethenaRows }, aggregatesByKey] = await Promise.all([
-    getMarketPositions(marketKey),
-    getEthenaPositions(),
-    getMarketAggregates(),
-  ])
+  const [{ rows: marketRows, truncated }, { rows: ethenaRows }, aggregatesByKey] = await Promise.all(
+    [getMarketPositions(marketKey), getEthenaPositions(), getMarketAggregates()],
+  )
 
   const aggregate = Array.from(aggregatesByKey.values()).find(
     (a) => a.market_key === marketKey && a.reserve_symbol === reserveSymbol,
@@ -122,5 +123,6 @@ export async function loadReserveView(
     concentration: { top1, top5, top10 },
     recursion,
     freshness,
+    recursionApprox: truncated,
   }
 }
