@@ -25,6 +25,7 @@ export interface ReserveView {
   topDepositors: DepositorRow[]
   concentration: { top1: number; top5: number; top10: number }
   recursion: ReserveRecursion
+  freshness?: string
 }
 
 export async function loadReserveView(
@@ -92,6 +93,11 @@ export async function loadReserveView(
     ethenaSupplyByUser,
   })
 
+  const freshness = marketRows
+    .map((r) => r.latestBlockDay)
+    .sort()
+    .pop()
+
   return {
     chain,
     marketKey,
@@ -106,5 +112,6 @@ export async function loadReserveView(
     topDepositors: depositors.slice(0, 50),
     concentration: { top1, top5, top10 },
     recursion,
+    freshness,
   }
 }

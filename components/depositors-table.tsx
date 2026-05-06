@@ -30,7 +30,9 @@ export function DepositorsTable({
           <div className="col-span-1 text-[var(--color-text-muted)]">#{i + 1}</div>
           <div className="col-span-4 text-[var(--color-accent)]">{shortAddr(r.userAddress)}</div>
           <div className="col-span-3 text-right">{fmtUsd(r.amountUsd)}</div>
-          <div className="col-span-2 text-right">{fmtPct(r.amountUsd / totalSupplyUsd)}</div>
+          <div className="col-span-2 text-right">
+            {totalSupplyUsd > 0 ? fmtPct(r.amountUsd / totalSupplyUsd) : "—"}
+          </div>
           <div className="col-span-2 text-right">
             {r.isEthena && <Tag variant="ethena">Ethena</Tag>}
           </div>

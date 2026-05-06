@@ -15,7 +15,12 @@ export interface FootprintRow {
   isAnomalyBorrow: boolean
 }
 
-export async function loadFootprint(): Promise<FootprintRow[]> {
+export interface FootprintResult {
+  rows: FootprintRow[]
+  freshness: string | undefined
+}
+
+export async function loadFootprint(): Promise<FootprintResult> {
   const [positions, aggregatesByKey] = await Promise.all([
     getEthenaPositions(),
     getMarketAggregates(),
@@ -102,10 +107,19 @@ export async function loadFootprint(): Promise<FootprintRow[]> {
     }
   }
   // Spec §3: recursion score is the primary sort key; fall back to $ size for rows w/o a score.
-  return out.sort((a, b) => {
+  const rows = out.sort((a, b) => {
     const ra = a.recursionScore ?? 0
     const rb = b.recursionScore ?? 0
     if (rb !== ra) return rb - ra
     return Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd)
   })
+
+  // T2.6 — surface staleness via the most recent latest_block_day across all
+  // Ethena positions. Lets the user see if the BigQuery pipeline is stalled.
+  const freshness = positions
+    .map((p) => p.latestBlockDay)
+    .sort()
+    .pop()
+
+  return { rows, freshness }
 }

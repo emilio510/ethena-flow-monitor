@@ -41,7 +41,7 @@ export default async function Page({
 
   return (
     <main>
-      <Header />
+      <Header freshness={view.freshness} />
       <section className="px-6 py-6">
         <h1 className="mb-1 text-xl uppercase tracking-wider">
           <span className="text-[var(--color-accent)]">{symbol}</span>

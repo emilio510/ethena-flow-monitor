@@ -8,7 +8,7 @@ import { fmtUsd } from "@/lib/format"
 export const revalidate = 300
 
 export default async function Page() {
-  const rows = await loadFootprint()
+  const { rows, freshness } = await loadFootprint()
   const totalSupplied = rows
     .filter((r) => !r.isAnomalyBorrow)
     .reduce((a, r) => a + r.ethenaSuppliedUsd, 0)
@@ -18,7 +18,7 @@ export default async function Page() {
 
   return (
     <main>
-      <Header />
+      <Header freshness={freshness} />
       <section className="px-6 py-6">
         <h1 className="mb-4 text-xl uppercase tracking-wider text-[var(--color-accent)]">
           Ethena footprint
