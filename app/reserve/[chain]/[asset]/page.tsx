@@ -64,7 +64,6 @@ export default async function Page({
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <ConcentrationPanel {...view.concentration} />
           <RecursionPanel
-            totalBorrowUsd={view.totalBorrowUsd}
             recursionScore={view.recursion.recursionScore}
             breakdown={breakdown}
           />

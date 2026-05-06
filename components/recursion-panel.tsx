@@ -22,7 +22,6 @@ export function RecursionPanel({
   recursionScore,
   breakdown,
 }: {
-  totalBorrowUsd: number
   recursionScore: number
   breakdown: RowData[]
 }) {
