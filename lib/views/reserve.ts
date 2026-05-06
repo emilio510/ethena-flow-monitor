@@ -59,10 +59,13 @@ export async function loadReserveView(
   }
   depositors.sort((a, b) => b.amountUsd - a.amountUsd)
 
-  const total = depositors.reduce((a, d) => a + d.amountUsd, 0) || 1
-  const top1 = (depositors[0]?.amountUsd ?? 0) / total
-  const top5 = depositors.slice(0, 5).reduce((a, d) => a + d.amountUsd, 0) / total
-  const top10 = depositors.slice(0, 10).reduce((a, d) => a + d.amountUsd, 0) / total
+  // Use the markets-API aggregate as the canonical denominator (T1.4).
+  // Falling back to local sum only if aggregate is zero so we don't divide by zero.
+  const localSum = depositors.reduce((a, d) => a + d.amountUsd, 0)
+  const denom = aggregate.deposits > 0 ? aggregate.deposits : localSum > 0 ? localSum : 1
+  const top1 = (depositors[0]?.amountUsd ?? 0) / denom
+  const top5 = depositors.slice(0, 5).reduce((a, d) => a + d.amountUsd, 0) / denom
+  const top10 = depositors.slice(0, 10).reduce((a, d) => a + d.amountUsd, 0) / denom
 
   const ethenaSupplyByUser = new Map<string, number>()
   for (const row of ethenaRows) {
@@ -76,10 +79,14 @@ export async function loadReserveView(
     }
   }
 
+  // T1.3 — Ethena wallet rows are anomalies, not normal data; exclude from
+  // the recursion calculation so a self-borrow doesn't inflate its own score.
+  const nonEthenaRows = marketRows.filter((r) => !isEthenaWallet(r.userAddress))
+
   const recursion = computeReserveRecursion({
     reserveSymbol,
     marketKey,
-    rows: marketRows,
+    rows: nonEthenaRows,
     aggregateDeposits: aggregate.deposits,
     aggregateBorrows: aggregate.borrows,
     ethenaSupplyByUser,

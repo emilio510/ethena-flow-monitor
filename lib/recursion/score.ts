@@ -32,12 +32,10 @@ export function computeReserveRecursion(input: ReserveRecursionInput): ReserveRe
 
   const borrowsByCollateral = new Map<string, number>()
   let ethenaStackBorrowed = 0
-  let totalBorrowed = 0
 
   for (const row of input.rows) {
     for (const attribution of attributeRow(row)) {
       if (attribution.borrowSymbol !== input.reserveSymbol) continue
-      totalBorrowed += attribution.borrowedUsd
       const prev = borrowsByCollateral.get(attribution.collateralSymbol) ?? 0
       borrowsByCollateral.set(attribution.collateralSymbol, prev + attribution.borrowedUsd)
       if (isEthenaStack(classify(attribution.collateralSymbol))) {
@@ -47,7 +45,9 @@ export function computeReserveRecursion(input: ReserveRecursionInput): ReserveRe
   }
 
   const ethenaCollateralBorrowShare =
-    totalBorrowed > 0 ? clamp(ethenaStackBorrowed / totalBorrowed) : 0
+    input.aggregateBorrows > 0
+      ? clamp(ethenaStackBorrowed / input.aggregateBorrows)
+      : 0
 
   return {
     reserveSymbol: input.reserveSymbol,
