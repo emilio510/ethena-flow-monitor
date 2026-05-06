@@ -57,7 +57,7 @@ export function RecursionPanel({
                   background: "var(--color-bg-card)",
                   border: "1px solid var(--color-border)",
                 }}
-                formatter={(v: number) => fmtUsd(v)}
+                formatter={(v) => (typeof v === "number" ? fmtUsd(v) : String(v))}
               />
             </PieChart>
           </ResponsiveContainer>
