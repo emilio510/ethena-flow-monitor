@@ -1,6 +1,14 @@
 import { z } from "zod"
 import { tlFetch } from "./client"
 
+// Rate-like fields are nullable in the upstream when a reserve has no
+// liquidity (e.g. utilization is null when both deposits and borrows are 0).
+// Default to 0 so the dashboard can still display the row.
+const numberOrNullToZero = z
+  .number()
+  .nullable()
+  .transform((v) => v ?? 0)
+
 const MarketReserveRow = z.object({
   protocol: z.string(),
   market_key: z.string(),
@@ -10,10 +18,10 @@ const MarketReserveRow = z.object({
   borrows: z.number(),
   available_liquidity: z.number(),
   borrow_capacity: z.number(),
-  utilization: z.number(),
-  borrow_apy: z.number(),
-  supply_apy: z.number(),
-  reserve_price: z.number(),
+  utilization: numberOrNullToZero,
+  borrow_apy: numberOrNullToZero,
+  supply_apy: numberOrNullToZero,
+  reserve_price: numberOrNullToZero,
 })
 
 const Response = z.object({ data: z.array(MarketReserveRow) })
