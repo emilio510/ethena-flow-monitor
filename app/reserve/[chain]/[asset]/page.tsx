@@ -71,7 +71,7 @@ export default async function Page({
         <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
           <ConcentrationPanel {...view.concentration} />
           <RecursionPanel
-            recursionScore={view.recursion.recursionScore}
+            ethenaCollateralBorrowShare={view.recursion.ethenaCollateralBorrowShare}
             breakdown={breakdown}
           />
         </div>

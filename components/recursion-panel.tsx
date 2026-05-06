@@ -19,10 +19,10 @@ const COLORS: Record<Bucket, string> = {
 }
 
 export function RecursionPanel({
-  recursionScore,
+  ethenaCollateralBorrowShare,
   breakdown,
 }: {
-  recursionScore: number
+  ethenaCollateralBorrowShare: number
   breakdown: RowData[]
 }) {
   return (
@@ -31,9 +31,11 @@ export function RecursionPanel({
         Borrow recursion
       </div>
       <div className="mb-4 text-2xl">
-        <span className="text-[var(--color-recursion)]">{fmtPct(recursionScore)}</span>
+        <span className="text-[var(--color-recursion)]">
+          {fmtPct(ethenaCollateralBorrowShare)}
+        </span>
         <span className="ml-2 text-sm text-[var(--color-text-muted)]">
-          of borrows are recursive Ethena loops
+          of borrows are collateralised by Ethena-stack assets
         </span>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
