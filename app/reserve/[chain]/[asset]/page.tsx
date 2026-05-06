@@ -1,3 +1,4 @@
+import { notFound } from "next/navigation"
 import { loadReserveView } from "@/lib/views/reserve"
 import { Header } from "@/components/header"
 import { KpiCard } from "@/components/kpi-card"
@@ -6,18 +7,29 @@ import { ConcentrationPanel } from "@/components/concentration-panel"
 import { DepositorsTable } from "@/components/depositors-table"
 import { RecursionPanel } from "@/components/recursion-panel"
 import { fmtUsd, fmtPct } from "@/lib/format"
-import type { Chain } from "@/config/markets"
+import { isChain } from "@/config/markets"
 
 export const revalidate = 300
 
 export default async function Page({
   params,
 }: {
-  params: Promise<{ chain: Chain; asset: string }>
+  params: Promise<{ chain: string; asset: string }>
 }) {
   const { chain, asset } = await params
+  // T3.1 — validate the path param is a known chain before it reaches the API,
+  // so an attacker-controlled URL can not surface a raw stack trace.
+  if (!isChain(chain)) notFound()
   const symbol = decodeURIComponent(asset)
-  const view = await loadReserveView(chain, symbol)
+  let view
+  try {
+    view = await loadReserveView(chain, symbol)
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("Reserve not found")) {
+      notFound()
+    }
+    throw err
+  }
 
   const breakdown = Array.from(view.recursion.borrowsByCollateral.entries())
     .map(([collateralSymbol, borrowedUsd]) => ({

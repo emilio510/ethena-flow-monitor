@@ -1,4 +1,9 @@
-export type Chain = "ethereum" | "base" | "mantle" | "plasma" | "megaeth"
+export const CHAINS = ["ethereum", "base", "mantle", "plasma", "megaeth"] as const
+export type Chain = (typeof CHAINS)[number]
+
+export function isChain(value: unknown): value is Chain {
+  return typeof value === "string" && (CHAINS as readonly string[]).includes(value)
+}
 
 export interface Market {
   chain: Chain

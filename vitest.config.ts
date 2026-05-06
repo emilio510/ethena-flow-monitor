@@ -12,6 +12,9 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': path.resolve(__dirname, '.'),
+      // `server-only` package throws in client bundles; it has no test-time
+      // resolution. Map to an empty stub so tests can import server modules.
+      'server-only': path.resolve(__dirname, 'tests/stubs/server-only.ts'),
     },
   },
 })
