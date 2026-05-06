@@ -1,0 +1,70 @@
+import { loadReserveView } from "@/lib/views/reserve"
+import { Header } from "@/components/header"
+import { KpiCard } from "@/components/kpi-card"
+import { KpiStrip } from "@/components/kpi-strip"
+import { ConcentrationPanel } from "@/components/concentration-panel"
+import { DepositorsTable } from "@/components/depositors-table"
+import { RecursionPanel } from "@/components/recursion-panel"
+import { fmtUsd, fmtPct } from "@/lib/format"
+import type { Chain } from "@/config/markets"
+
+export const revalidate = 300
+
+export default async function Page({
+  params,
+}: {
+  params: Promise<{ chain: Chain; asset: string }>
+}) {
+  const { chain, asset } = await params
+  const symbol = decodeURIComponent(asset)
+  const view = await loadReserveView(chain, symbol)
+
+  const breakdown = Array.from(view.recursion.borrowsByCollateral.entries())
+    .map(([collateralSymbol, borrowedUsd]) => ({
+      collateralSymbol,
+      borrowedUsd,
+      shareOfTotal: view.totalBorrowUsd > 0 ? borrowedUsd / view.totalBorrowUsd : 0,
+    }))
+    .sort((a, b) => b.borrowedUsd - a.borrowedUsd)
+
+  return (
+    <main>
+      <Header />
+      <section className="px-6 py-6">
+        <h1 className="mb-1 text-xl uppercase tracking-wider">
+          <span className="text-[var(--color-accent)]">{symbol}</span>
+          <span className="ml-3 text-[var(--color-text-muted)]">on {chain}</span>
+        </h1>
+        <div className="mb-4 text-xs text-[var(--color-text-muted)]">{view.marketKey}</div>
+
+        <KpiStrip>
+          <KpiCard label="Total supplied" value={fmtUsd(view.totalSupplyUsd)} />
+          <KpiCard label="Total borrowed" value={fmtUsd(view.totalBorrowUsd)} />
+          <KpiCard label="Utilization" value={fmtPct(view.utilization)} />
+          <KpiCard
+            label="Supply / Borrow APY"
+            value={`${fmtPct(view.supplyApy)} / ${fmtPct(view.borrowApy)}`}
+          />
+          <KpiCard label="Borrow cap" value={fmtUsd(view.borrowCap)} />
+          <KpiCard label="Recursion score" value={fmtPct(view.recursion.recursionScore)} />
+        </KpiStrip>
+
+        <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+          <ConcentrationPanel {...view.concentration} />
+          <RecursionPanel
+            totalBorrowUsd={view.totalBorrowUsd}
+            recursionScore={view.recursion.recursionScore}
+            breakdown={breakdown}
+          />
+        </div>
+
+        <div className="mt-6">
+          <h2 className="mb-2 text-[10px] uppercase tracking-wider text-[var(--color-accent)]">
+            Top depositors
+          </h2>
+          <DepositorsTable rows={view.topDepositors} totalSupplyUsd={view.totalSupplyUsd} />
+        </div>
+      </section>
+    </main>
+  )
+}
