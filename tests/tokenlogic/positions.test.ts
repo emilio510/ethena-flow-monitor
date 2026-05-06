@@ -52,24 +52,25 @@ describe("getEthenaPositions", () => {
 
 describe("getMarketPositions", () => {
   it("paginates until exhausted", async () => {
-    const page1 = Array.from({ length: 1000 }, (_, i) => ({
+    const PAGE_SIZE = 10_000
+    const page1 = Array.from({ length: PAGE_SIZE }, (_, i) => ({
       ...baseRow,
       user_address: `0x${i.toString(16).padStart(40, "0")}`,
     }))
     const page2 = Array.from({ length: 47 }, (_, i) => ({
       ...baseRow,
-      user_address: `0x${(1000 + i).toString(16).padStart(40, "0")}`,
+      user_address: `0x${(PAGE_SIZE + i).toString(16).padStart(40, "0")}`,
     }))
     const mockFetch = vi.fn().mockImplementation((url: string) => {
       const offset = Number(new URL(url).searchParams.get("offset") ?? "0")
-      const data = offset === 0 ? page1 : offset === 1000 ? page2 : []
+      const data = offset === 0 ? page1 : offset === PAGE_SIZE ? page2 : []
       return Promise.resolve({ ok: true, status: 200, json: async () => ({ data }) })
     })
     vi.stubGlobal("fetch", mockFetch)
     const { getMarketPositions } = await import("@/lib/tokenlogic/positions")
 
     const rows = await getMarketPositions("plasma-core-v3")
-    expect(rows).toHaveLength(1047)
+    expect(rows).toHaveLength(PAGE_SIZE + 47)
     expect(mockFetch).toHaveBeenCalledTimes(2)
   })
 })

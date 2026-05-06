@@ -2,8 +2,10 @@ import { tlFetch } from "./client"
 import { UserPositionsResponse, type UserPositionRow } from "./schemas"
 import { ETHENA_WALLETS } from "@/config/wallets"
 
-const PAGE_SIZE = 1000
-const MAX_PAGES = 200
+// API max is 10000 rows per page. Larger pages cut sequential fetches by 10x;
+// busy markets (ethereum, base) have 25k+ borrowers each.
+const PAGE_SIZE = 10_000
+const MAX_PAGES = 50
 
 class PaginationLimitExceeded extends Error {
   constructor(scope: string) {

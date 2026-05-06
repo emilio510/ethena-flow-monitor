@@ -1,6 +1,7 @@
 import { env } from "@/config/env"
 
-const DEFAULT_TIMEOUT_MS = 15_000
+// Pages of 10k rows from busy Aave markets can take 8-12s. Give them headroom.
+const DEFAULT_TIMEOUT_MS = 30_000
 
 /**
  * Error thrown by tlFetch on non-2xx responses.

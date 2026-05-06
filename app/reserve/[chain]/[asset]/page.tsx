@@ -10,6 +10,7 @@ import { fmtUsd, fmtPct } from "@/lib/format"
 import { isChain } from "@/config/markets"
 
 export const revalidate = 300
+export const maxDuration = 90
 
 export default async function Page({
   params,

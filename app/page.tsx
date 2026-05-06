@@ -6,6 +6,9 @@ import { FootprintTable } from "@/components/footprint-table"
 import { fmtUsd } from "@/lib/format"
 
 export const revalidate = 300
+// View A walks every borrower across every market Ethena touches; this
+// can run 30-60s on cold load against the busy ethereum + base markets.
+export const maxDuration = 90
 
 export default async function Page() {
   const { rows, freshness } = await loadFootprint()
