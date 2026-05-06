@@ -11,7 +11,7 @@ export const revalidate = 300
 export const maxDuration = 90
 
 export default async function Page() {
-  const { rows, freshness } = await loadFootprint()
+  const { rows, freshness, failedWallets } = await loadFootprint()
   const totalSupplied = rows
     .filter((r) => !r.isAnomalyBorrow)
     .reduce((a, r) => a + r.ethenaSuppliedUsd, 0)
@@ -21,7 +21,7 @@ export default async function Page() {
 
   return (
     <main>
-      <Header freshness={freshness} />
+      <Header freshness={freshness} failedWallets={failedWallets} />
       <section className="px-6 py-6">
         <h1 className="mb-4 text-xl uppercase tracking-wider text-[var(--color-accent)]">
           Ethena footprint
