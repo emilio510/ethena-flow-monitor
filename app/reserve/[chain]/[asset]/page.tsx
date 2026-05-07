@@ -4,7 +4,7 @@ import { Header } from "@/components/header"
 import { KpiCard } from "@/components/kpi-card"
 import { KpiStrip } from "@/components/kpi-strip"
 import { ConcentrationPanel } from "@/components/concentration-panel"
-import { DepositorsTable } from "@/components/depositors-table"
+import { ReserveTabs } from "@/components/reserve-tabs"
 import { RecursionPanel } from "@/components/recursion-panel"
 import { ChainIcon } from "@/components/chain-icon"
 import { fmtUsd, fmtPct } from "@/lib/format"
@@ -88,10 +88,13 @@ export default async function Page({
         </div>
 
         <div className="mt-8">
-          <h2 className="mb-4 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-text-dim)]">
-            Top depositors
-          </h2>
-          <DepositorsTable rows={view.topDepositors} totalSupplyUsd={view.totalSupplyUsd} />
+          <ReserveTabs
+            reserveSymbol={symbol}
+            totalSupplyUsd={view.totalSupplyUsd}
+            depositors={view.topDepositors}
+            borrowers={view.topBorrowers}
+            collateralUsers={view.topCollateralUsers}
+          />
         </div>
       </section>
     </main>

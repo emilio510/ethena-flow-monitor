@@ -19,6 +19,33 @@ export interface DepositorRow {
   isLeveraged: boolean
 }
 
+export interface PositionAsset {
+  symbol: string
+  amountUsd: number
+}
+
+export interface BorrowerRow {
+  userAddress: string
+  isEthena: boolean
+  borrowOfReserveUsd: number
+  totalSupplyUsd: number
+  totalBorrowUsd: number
+  healthFactor: number | null
+  supplies: PositionAsset[]
+  borrows: PositionAsset[]
+}
+
+export interface CollateralUserRow {
+  userAddress: string
+  isEthena: boolean
+  reserveSupplyUsd: number
+  totalSupplyUsd: number
+  totalBorrowUsd: number
+  healthFactor: number | null
+  supplies: PositionAsset[]
+  borrows: PositionAsset[]
+}
+
 export interface ReserveView {
   chain: Chain
   marketKey: string
@@ -31,6 +58,8 @@ export interface ReserveView {
   borrowApy: number
   borrowCap: number
   topDepositors: DepositorRow[]
+  topBorrowers: BorrowerRow[]
+  topCollateralUsers: CollateralUserRow[]
   concentration: { top1: number; top5: number; top10: number }
   recursion: ReserveRecursion
   freshness?: string
@@ -80,6 +109,44 @@ export async function loadReserveView(
   const top5 = sliceShare(depositors.slice(0, 5).reduce((a, d) => a + d.amountUsd, 0))
   const top10 = sliceShare(depositors.slice(0, 10).reduce((a, d) => a + d.amountUsd, 0))
 
+  // Borrowers of THIS reserve, with their full position composition for the bar viz.
+  const borrowers: BorrowerRow[] = []
+  for (const row of marketRows) {
+    const borrow = row.borrows.find((b) => b.symbol === reserveSymbol)
+    if (!borrow) continue
+    borrowers.push({
+      userAddress: row.userAddress,
+      isEthena: isEthenaWallet(row.userAddress),
+      borrowOfReserveUsd: borrow.amountUsd,
+      totalSupplyUsd: row.totalSupplyUsd,
+      totalBorrowUsd: row.totalBorrowUsd,
+      healthFactor: row.healthFactor,
+      supplies: row.supplies.map((s) => ({ symbol: s.symbol, amountUsd: s.amountUsd })),
+      borrows: row.borrows.map((b) => ({ symbol: b.symbol, amountUsd: b.amountUsd })),
+    })
+  }
+  borrowers.sort((a, b) => b.borrowOfReserveUsd - a.borrowOfReserveUsd)
+
+  // Users who supply THIS reserve AND have any borrow position (i.e. using
+  // it as collateral against debt).
+  const collateralUsers: CollateralUserRow[] = []
+  for (const row of marketRows) {
+    if ((row.totalBorrowUsd ?? 0) <= 0) continue
+    const supply = row.supplies.find((s) => s.symbol === reserveSymbol)
+    if (!supply) continue
+    collateralUsers.push({
+      userAddress: row.userAddress,
+      isEthena: isEthenaWallet(row.userAddress),
+      reserveSupplyUsd: supply.amountUsd,
+      totalSupplyUsd: row.totalSupplyUsd,
+      totalBorrowUsd: row.totalBorrowUsd,
+      healthFactor: row.healthFactor,
+      supplies: row.supplies.map((s) => ({ symbol: s.symbol, amountUsd: s.amountUsd })),
+      borrows: row.borrows.map((b) => ({ symbol: b.symbol, amountUsd: b.amountUsd })),
+    })
+  }
+  collateralUsers.sort((a, b) => b.reserveSupplyUsd - a.reserveSupplyUsd)
+
   const ethenaSupplyByUser = new Map<string, number>()
   for (const row of ethenaRows) {
     if (row.marketKey !== marketKey) continue
@@ -122,6 +189,8 @@ export async function loadReserveView(
     borrowApy: aggregate.borrow_apy,
     borrowCap: aggregate.borrow_capacity,
     topDepositors: depositors.slice(0, 50),
+    topBorrowers: borrowers.slice(0, 50),
+    topCollateralUsers: collateralUsers.slice(0, 50),
     concentration: { top1, top5, top10 },
     recursion,
     freshness,
