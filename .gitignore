@@ -49,3 +49,4 @@ next-env.d.ts
 .ours-after.png
 .after-final.png
 *.local-screenshot.png
+.tmp-screenshots/
