@@ -7,6 +7,7 @@ import {
   type MorphoVaultDetail,
 } from "@/lib/morpho/positions"
 import { getEthenaIdleBalances, type IdleBalanceResult } from "@/lib/onchain/balances"
+import { getEthenaBacking, type EthenaBackingResult } from "@/lib/ethena/transparency"
 import { isEthenaWallet } from "@/config/wallets"
 import { computeReserveRecursion } from "@/lib/recursion/score"
 import { classify, isEthenaStack } from "@/lib/recursion/classify"
@@ -47,10 +48,15 @@ export interface FootprintResult {
   /** Recursive looping in USD = weightedRecursion × deployed.
    *  This is the slice of Ethena's stack actually being levered. */
   recursiveUsd: number
-  /** True recursion share = recursiveUsd / (deployed + idle). Headline figure
-   *  on View A — the share of Ethena's total backing tied up in recursive
-   *  loops, accounting for the idle reserves that don't lever anything. */
+  /** True recursion share = recursiveUsd / total backing. Headline figure on
+   *  View A. Denominator uses Ethena's official $-total when their API is up
+   *  (so CEX-delegated funding-rate-harvest backing is included); falls back
+   *  to deployed + idle when the API is down. */
   trueRecursionShare: number
+  /** Ethena's own transparency feed — total backing notional, the CEX
+   *  delegation breakdown, and the reserve fund. Used to surface the ~13%
+   *  of backing that isn't on-chain. */
+  ethena: EthenaBackingResult
 }
 
 /** Drop dust rows below this threshold so the table only shows meaningful
@@ -89,11 +95,13 @@ export async function loadFootprint(): Promise<FootprintResult> {
     aggregatesByKey,
     { positions: morphoPositions, failedWallets: failedMorpho },
     idle,
+    ethena,
   ] = await Promise.all([
     getEthenaPositions(),
     getMarketAggregates(),
     getEthenaMorphoPositions(),
     getEthenaIdleBalances(),
+    getEthenaBacking(),
   ])
 
   // ───────────────────── Aave footprint
@@ -284,7 +292,12 @@ export async function loadFootprint(): Promise<FootprintResult> {
     .filter((r) => !r.isAnomalyBorrow)
     .reduce((a, r) => a + r.ethenaSuppliedUsd, 0)
   const recursiveUsd = weightedRecursion * deployedUsd
-  const totalBacking = deployedUsd + idle.totalUsd
+  // Prefer Ethena's official total when available — it includes the ~13% of
+  // backing delegated to CEXes for funding-rate harvest, which we can't see
+  // on-chain. Fall back to deployed + idle if their API is down.
+  const totalBacking = ethena.failed
+    ? deployedUsd + idle.totalUsd
+    : ethena.totalBackingUsd
   const trueRecursionShare =
     totalBacking > 0 ? clamp(recursiveUsd / totalBacking) : 0
 
@@ -300,5 +313,6 @@ export async function loadFootprint(): Promise<FootprintResult> {
     idle,
     recursiveUsd,
     trueRecursionShare,
+    ethena,
   }
 }
