@@ -1,45 +1,43 @@
 @import "tailwindcss";
 
 @theme {
-  /* Layered backgrounds let cards register without heavy borders. */
-  --color-bg: #0b0c0f;
-  --color-bg-card: #14161b;
-  --color-bg-card-elev: #1a1c22;
-  --color-hairline: #1f2129;
-  --color-border: #1f2129;
+  /* Tinted near-black background, faint borders, no elevated cards.
+   * Yuzu uses flat panels with hairline borders, not background layering. */
+  --color-bg: #08090d;
+  --color-bg-card: #0b0d12;
+  --color-hairline: #1a1d26;
+  --color-border: #1a1d26;
   --color-border-subtle: #262932;
 
-  /* Three-tier text hierarchy: primary, dim, ghost. */
-  --color-text: #ececef;
+  /* Three-tier text: warm cream primary, dim, ghost. */
+  --color-text: #d9d3c0;
   --color-text-muted: #8b8d96;
   --color-text-dim: #8b8d96;
-  --color-text-ghost: #585a63;
+  --color-text-ghost: #5a5d68;
 
   --color-accent: #f5cc4c;
   --color-accent-soft: #c8a536;
-  --color-success: #34d399;
+  --color-success: #5dd6c5;
   --color-recursion: #ef4444;
   --color-pt-tag: #f59e0b;
-  --color-chart-fill: #2dd4bf;
+  --color-chart-fill: #5dd6c5;
   --color-chart-blue: #6366f1;
 
-  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 html, body {
   background: var(--color-bg);
   color: var(--color-text);
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums slashed-zero;
   font-feature-settings: "ss01", "cv11";
 }
 
-/* Tabular numerals + zero with slash, applied wherever numbers appear. */
 .tabular {
   font-variant-numeric: tabular-nums slashed-zero;
 }
 
-/* Mono-by-default for any element rendering raw numbers, addresses, or symbols. */
 .mono {
   font-family: var(--font-mono);
   font-variant-numeric: tabular-nums slashed-zero;

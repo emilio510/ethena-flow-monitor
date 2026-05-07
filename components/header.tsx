@@ -10,22 +10,19 @@ export function Header({
   const hasFailures = failedWallets && failedWallets.length > 0
   return (
     <header>
-      <div className="flex items-center justify-between px-8 pt-7 pb-6">
-        <div className="flex items-baseline gap-3">
-          <Link
-            href="/"
-            className="text-base font-semibold tracking-tight text-[var(--color-text)]"
-          >
-            Ethena Flow Monitor
-          </Link>
-          <span className="text-[12px] text-[var(--color-text-ghost)]">
-            Recursive-loop exposure on Aave V3
-          </span>
+      <div className="border-b border-[var(--color-border)] px-8 py-3">
+        <div className="text-[10px] uppercase tracking-[0.15em] text-[var(--color-text-ghost)]">
+          Ethena Flow Monitor · Aave V3 Recursive-Loop Exposure
         </div>
+      </div>
+      <div className="flex items-center justify-between px-8 pt-6 pb-5">
+        <Link href="/" className="text-[22px] tracking-tight text-[var(--color-text)]">
+          On-Chain Lending Risk
+        </Link>
         {freshness ? (
-          <div className="flex items-center gap-2 text-[11px] text-[var(--color-text-dim)]">
+          <div className="flex items-center gap-2 rounded-md border border-[color:rgb(93_214_197_/_0.3)] bg-[color:rgb(93_214_197_/_0.06)] px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-[var(--color-success)]">
             <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-            <span className="mono">As of {freshness}</span>
+            <span>Live · {freshness}</span>
           </div>
         ) : null}
       </div>

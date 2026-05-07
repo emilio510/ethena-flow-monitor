@@ -3,7 +3,7 @@ type Tone = "default" | "recursion" | "accent"
 const VALUE_TONE: Record<Tone, string> = {
   default: "text-[var(--color-text)]",
   recursion: "text-[var(--color-recursion)]",
-  accent: "text-[var(--color-accent)]",
+  accent: "text-[var(--color-success)]",
 }
 
 export function KpiCard({
@@ -18,17 +18,15 @@ export function KpiCard({
   tone?: Tone
 }) {
   return (
-    <div className="rounded-lg bg-[var(--color-bg-card)] px-5 py-4">
-      <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-text-dim)]">
+    <div className="border border-[var(--color-border)] bg-[var(--color-bg-card)] px-4 py-3">
+      <div className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-accent)]">
         {label}
       </div>
-      <div
-        className={`mono mt-2 text-[28px] font-semibold leading-[1.1] tracking-tight ${VALUE_TONE[tone]}`}
-      >
+      <div className={`mt-1.5 text-[24px] leading-[1.1] tracking-tight ${VALUE_TONE[tone]}`}>
         {value}
       </div>
       {subValue && (
-        <div className="mt-1.5 text-[11px] text-[var(--color-text-ghost)]">{subValue}</div>
+        <div className="mt-1 text-[10px] text-[var(--color-text-ghost)]">{subValue}</div>
       )}
     </div>
   )

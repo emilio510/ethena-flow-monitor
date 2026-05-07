@@ -47,19 +47,19 @@ export default async function Page({
     <main>
       <Header freshness={view.freshness} />
       <section className="px-8 pb-12">
-        <div className="mb-7 flex items-center gap-3">
-          <ChainIcon chain={chain} size={28} />
-          <div className="flex items-baseline gap-3">
-            <h1 className="mono text-[28px] font-semibold tracking-tight text-[var(--color-text)]">
-              {symbol}
-            </h1>
-            <span className="text-sm text-[var(--color-text-dim)]">
-              on <span className="capitalize">{chain}</span>
-            </span>
-            <span className="mono text-[11px] text-[var(--color-text-ghost)]">
-              {view.marketKey}
-            </span>
-          </div>
+        <div className="mb-6 flex items-baseline gap-3">
+          <h1 className="text-[32px] uppercase tracking-tight text-[var(--color-accent)]">
+            {symbol}
+          </h1>
+          <span className="text-[13px] text-[var(--color-text-dim)]">on</span>
+          <span className="flex items-center gap-2">
+            <ChainIcon chain={chain} size={18} />
+            <span className="text-[13px] capitalize text-[var(--color-text)]">{chain}</span>
+          </span>
+          <span className="text-[var(--color-text-ghost)]">·</span>
+          <span className="text-[12px] uppercase tracking-[0.05em] text-[var(--color-text-ghost)]">
+            Aave V3
+          </span>
         </div>
 
         <KpiStrip>
