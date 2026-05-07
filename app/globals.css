@@ -1,13 +1,12 @@
 @import "tailwindcss";
 
 @theme {
-  /* Tinted near-black background, faint borders, no elevated cards.
-   * Yuzu uses flat panels with hairline borders, not background layering. */
-  --color-bg: #08090d;
-  --color-bg-card: #0b0d12;
-  --color-hairline: #1a1d26;
-  --color-border: #1a1d26;
-  --color-border-subtle: #262932;
+  /* Dark navy background, slightly elevated cards, hairline borders. */
+  --color-bg: #11131a;
+  --color-bg-card: #181b25;
+  --color-hairline: #262a37;
+  --color-border: #262a37;
+  --color-border-subtle: #2f3340;
 
   /* Three-tier text: warm cream primary, dim, ghost. */
   --color-text: #d9d3c0;
