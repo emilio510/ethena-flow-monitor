@@ -193,6 +193,7 @@ export async function loadFootprint(): Promise<FootprintResult> {
       vaultAddress: string
       vaultName: string
       vaultAssetSymbol: string
+      vaultVersion: "V1" | "V2"
     }
   >()
   for (const m of morphoPositions) {
@@ -202,6 +203,7 @@ export async function loadFootprint(): Promise<FootprintResult> {
       vaultAddress: m.vaultAddress,
       vaultName: m.vaultName,
       vaultAssetSymbol: m.vaultAssetSymbol,
+      vaultVersion: m.vaultVersion,
     })
     morphoTotalByVault.set(key, (morphoTotalByVault.get(key) ?? 0) + m.ethenaSuppliedUsd)
   }
@@ -210,6 +212,7 @@ export async function loadFootprint(): Promise<FootprintResult> {
     address: m.vaultAddress,
     chain: m.chain,
     chainId: MORPHO_CHAINS.find((c) => c.chain === m.chain)!.chainId,
+    version: m.vaultVersion,
   }))
   const vaultsByKey: Map<string, MorphoVaultDetail> =
     vaultRefs.length > 0 ? await getMorphoVaultsBulk(vaultRefs) : new Map()
