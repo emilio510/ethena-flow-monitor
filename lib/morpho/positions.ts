@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { morphoQuery } from "./client"
+import { morphoQuery, MorphoError } from "./client"
 import { ETHENA_WALLETS } from "@/config/wallets"
 
 // Chain ids for the two Morpho deployments we cover.
@@ -476,6 +476,16 @@ async function resolveV2Adapter(
   return []
 }
 
+/** Morpho's GraphQL flags missing entities with a top-level error rather than
+ *  a null payload. We treat that as "not a V1 vault" so the dispatcher can
+ *  fall through to V2; any other error (timeout, 5xx, etc.) still propagates. */
+function isNotFoundError(err: unknown): boolean {
+  return (
+    err instanceof MorphoError &&
+    /no results matching|not[\s-]found/i.test(err.body)
+  )
+}
+
 /**
  * Fetch a single vault's allocation breakdown. Tries Morpho V1 first; falls
  * back to V2 (which follows adapters through to their underlying V1 vaults)
@@ -485,8 +495,12 @@ export async function getMorphoVault(
   address: string,
   chainId: number,
 ): Promise<MorphoVaultDetail | null> {
-  const v1 = await getMorphoVaultV1(address, chainId)
-  if (v1) return v1
+  try {
+    const v1 = await getMorphoVaultV1(address, chainId)
+    if (v1) return v1
+  } catch (err) {
+    if (!isNotFoundError(err)) throw err
+  }
   return getMorphoVaultV2(address, chainId)
 }
 
