@@ -5,6 +5,25 @@ const BqDate = z.object({ value: z.string() }).transform((d) => d.value)
 const ScalarOrArray = <T extends z.ZodTypeAny>(s: T) =>
   z.union([s, z.array(s)]).transform((v): z.infer<T>[] => (Array.isArray(v) ? v : [v]))
 
+/** TokenLogic recently changed the user-positions response to encode amount
+ *  arrays as comma-separated strings (e.g. "12544.77,1.08,99") instead of
+ *  number arrays. We accept either: a single number, an array of numbers, or
+ *  the new comma-string. Empty string means "no entries" (zero-length array). */
+const NumberArrayOrCsv = z
+  .union([z.number(), z.array(z.number()), z.string()])
+  .transform((v): number[] => {
+    if (typeof v === "number") return [v]
+    if (Array.isArray(v)) return v
+    if (v === "") return []
+    return v.split(",").map((s) => {
+      const n = Number(s.trim())
+      if (!Number.isFinite(n)) {
+        throw new Error(`Invalid number in CSV amount field: "${s}"`)
+      }
+      return n
+    })
+  })
+
 export const Reserve = z.object({
   symbol: z.string(),
   amount: z.number(),
@@ -22,12 +41,12 @@ const RawRow = z.object({
   wallet_label: z.string().nullable(),
   latest_block_day: BqDate,
   supply_reserve_symbols: z.array(z.string()),
-  supply_reserve_amount: ScalarOrArray(z.number()),
-  supply_reserve_amount_usd: ScalarOrArray(z.number()),
+  supply_reserve_amount: NumberArrayOrCsv,
+  supply_reserve_amount_usd: NumberArrayOrCsv,
   total_supply_amount_usd: z.number().nonnegative(),
   borrow_reserve_symbols: z.array(z.string()),
-  borrow_reserve_amount: ScalarOrArray(z.number()),
-  borrow_reserve_amount_usd: ScalarOrArray(z.number()),
+  borrow_reserve_amount: NumberArrayOrCsv,
+  borrow_reserve_amount_usd: NumberArrayOrCsv,
   total_borrow_amount_usd: z.number().nonnegative(),
   health_factor: z.number().nullable(),
   net_apy: z.number().nullable(),
