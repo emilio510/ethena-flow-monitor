@@ -25,6 +25,11 @@ export interface VaultMarketAllocation {
   supplyAssetsUsd: number
   shareOfVault: number
   isRecursive: boolean
+  /** Market-wide utilization (borrowed / supplied). Lets the UI distinguish
+   * 'allocated and actively borrowed' from 'allocated but idle'. */
+  marketUtilization: number
+  /** This vault's pro-rata share of the market's actual borrow. */
+  attributedBorrowUsd: number
 }
 
 export interface VaultEthenaDepositor {
@@ -80,6 +85,9 @@ export async function loadVaultView(
       const colBucket = a.collateralSymbol ? classify(a.collateralSymbol) : "OTHER"
       const loanBucket = a.loanSymbol ? classify(a.loanSymbol) : "OTHER"
       const isRecursive = isEthenaStack(colBucket) || isEthenaStack(loanBucket)
+      const marketUtilization =
+        a.marketSupplyUsd > 0 ? a.marketBorrowUsd / a.marketSupplyUsd : 0
+      const attributedBorrowUsd = a.supplyAssetsUsd * marketUtilization
       return {
         marketUniqueKey: a.marketUniqueKey,
         collateralSymbol: a.collateralSymbol,
@@ -88,21 +96,25 @@ export async function loadVaultView(
         shareOfVault:
           vault.totalAssetsUsd > 0 ? a.supplyAssetsUsd / vault.totalAssetsUsd : 0,
         isRecursive,
+        marketUtilization,
+        attributedBorrowUsd,
       }
     })
     .sort((a, b) => b.supplyAssetsUsd - a.supplyAssetsUsd)
 
-  // Vault recursion share uses the full (unfiltered) allocation so dust
-  // below MIN_ALLOCATION_USD doesn't change the headline number.
-  const recursiveAlloc = vault.allocation.reduce((sum, a) => {
+  // Vault recursion share uses the full (unfiltered) allocation; only the
+  // borrowed portion of recursive markets counts as actual leverage. Idle
+  // liquidity sitting in a recursive market does NOT inflate the score.
+  const attributedRecursiveBorrow = vault.allocation.reduce((sum, a) => {
     const colBucket = a.collateralSymbol ? classify(a.collateralSymbol) : "OTHER"
     const loanBucket = a.loanSymbol ? classify(a.loanSymbol) : "OTHER"
-    return isEthenaStack(colBucket) || isEthenaStack(loanBucket)
-      ? sum + a.supplyAssetsUsd
-      : sum
+    if (!isEthenaStack(colBucket) && !isEthenaStack(loanBucket)) return sum
+    if (a.marketSupplyUsd <= 0) return sum
+    const utilization = a.marketBorrowUsd / a.marketSupplyUsd
+    return sum + a.supplyAssetsUsd * utilization
   }, 0)
   const vaultRecursionShare =
-    vault.totalAssetsUsd > 0 ? clamp(recursiveAlloc / vault.totalAssetsUsd) : 0
+    vault.totalAssetsUsd > 0 ? clamp(attributedRecursiveBorrow / vault.totalAssetsUsd) : 0
 
   const recursionScore = ethenaShareOfVault * vaultRecursionShare
 

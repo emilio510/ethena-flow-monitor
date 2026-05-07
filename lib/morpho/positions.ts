@@ -32,11 +32,19 @@ const UserResponse = z.object({
     .nullable(),
 })
 
+const MarketState = z
+  .object({
+    supplyAssetsUsd: z.number().nullable(),
+    borrowAssetsUsd: z.number().nullable(),
+  })
+  .nullable()
+
 const Allocation = z.object({
   market: z.object({
     uniqueKey: z.string(),
     collateralAsset: z.object({ symbol: z.string() }).nullable(),
     loanAsset: z.object({ symbol: z.string() }).nullable(),
+    state: MarketState,
   }),
   supplyAssetsUsd: z.number().nullable(),
 })
@@ -72,7 +80,12 @@ export interface MorphoVaultAllocation {
   marketUniqueKey: string
   collateralSymbol: string | null
   loanSymbol: string | null
+  /** Vault's allocation to this market (its supply contribution). */
   supplyAssetsUsd: number
+  /** Total market supply across all suppliers (for vault-share computation). */
+  marketSupplyUsd: number
+  /** Total market borrow (the active leverage). */
+  marketBorrowUsd: number
 }
 
 export interface MorphoVaultDetail {
@@ -109,6 +122,7 @@ query MorphoVault($address: String!, $chainId: Int!) {
           uniqueKey
           collateralAsset { symbol }
           loanAsset { symbol }
+          state { supplyAssetsUsd borrowAssetsUsd }
         }
         supplyAssetsUsd
       }
@@ -205,6 +219,8 @@ export async function getMorphoVault(
       collateralSymbol: a.market.collateralAsset?.symbol ?? null,
       loanSymbol: a.market.loanAsset?.symbol ?? null,
       supplyAssetsUsd: a.supplyAssetsUsd ?? 0,
+      marketSupplyUsd: a.market.state?.supplyAssetsUsd ?? 0,
+      marketBorrowUsd: a.market.state?.borrowAssetsUsd ?? 0,
     })),
   }
 }

@@ -45,19 +45,28 @@ const MIN_DUST_USD = 1_000_000
 
 const clamp = (n: number) => Math.max(0, Math.min(1, n))
 
-/** Recursion share for a Morpho vault: fraction of TVL allocated to markets
- * whose collateral OR loan asset is in the Ethena stack (Tier-1 or PT). */
+/** Recursion share for a Morpho vault. We attribute pro-rata to the
+ * *borrowed* portion of each market the vault supplies — not the allocated
+ * portion — so idle liquidity sitting unborrowed in a market does NOT count
+ * as recursive. Only money that is actually being levered counts.
+ *
+ *   vault_recursion_share =
+ *     Σ(allocation_i × utilization_i × is_recursive_i) / vault.TVL
+ *
+ * where utilization_i = market_i.borrowed / market_i.supplied.
+ */
 function morphoVaultRecursionShare(vault: MorphoVaultDetail): number {
   if (vault.totalAssetsUsd <= 0) return 0
-  let recursiveAlloc = 0
+  let attributedBorrow = 0
   for (const a of vault.allocation) {
     const colBucket = a.collateralSymbol ? classify(a.collateralSymbol) : "OTHER"
     const loanBucket = a.loanSymbol ? classify(a.loanSymbol) : "OTHER"
-    if (isEthenaStack(colBucket) || isEthenaStack(loanBucket)) {
-      recursiveAlloc += a.supplyAssetsUsd
-    }
+    if (!isEthenaStack(colBucket) && !isEthenaStack(loanBucket)) continue
+    if (a.marketSupplyUsd <= 0) continue
+    const utilization = a.marketBorrowUsd / a.marketSupplyUsd
+    attributedBorrow += a.supplyAssetsUsd * utilization
   }
-  return clamp(recursiveAlloc / vault.totalAssetsUsd)
+  return clamp(attributedBorrow / vault.totalAssetsUsd)
 }
 
 export async function loadFootprint(): Promise<FootprintResult> {

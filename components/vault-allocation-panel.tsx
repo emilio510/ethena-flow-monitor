@@ -49,7 +49,8 @@ export function VaultAllocationPanel({
           {fmtPct(vaultRecursionShare)}
         </span>
         <span className="text-[12px] text-[var(--color-text-dim)]">
-          of vault TVL is allocated to Ethena-stack markets
+          of vault TVL is actively borrowed against Ethena-stack collateral
+          (idle liquidity excluded)
         </span>
       </div>
       <div className="grid grid-cols-1 gap-5 md:grid-cols-[200px_1fr]">
@@ -89,17 +90,18 @@ export function VaultAllocationPanel({
           </div>
         </div>
         <div>
-          <div className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-[var(--color-border)] px-2 py-2 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]">
+          <div className="grid grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-[var(--color-border)] px-2 py-2 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]">
             <div>Market</div>
             <div className="text-right">Allocated</div>
-            <div className="text-right">Share</div>
+            <div className="text-right">Borrowed</div>
+            <div className="text-right">Utilization</div>
           </div>
           {allocation.map((a) => {
             const bucket = rowBucket(a)
             return (
               <div
                 key={a.marketUniqueKey}
-                className="grid grid-cols-[minmax(0,2fr)_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-[var(--color-border)] px-2 py-2"
+                className="grid grid-cols-[minmax(0,2.2fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-[var(--color-border)] px-2 py-2"
               >
                 <div className="flex min-w-0 items-center gap-2">
                   <span
@@ -118,17 +120,26 @@ export function VaultAllocationPanel({
                 <div className="text-right text-[13px] text-[var(--color-text)]">
                   {fmtUsd(a.supplyAssetsUsd)}
                 </div>
+                <div
+                  className={`text-right text-[13px] ${
+                    a.attributedBorrowUsd > 0
+                      ? "text-[var(--color-text)]"
+                      : "text-[var(--color-text-ghost)]"
+                  }`}
+                >
+                  {a.attributedBorrowUsd > 0 ? fmtUsd(a.attributedBorrowUsd) : "idle"}
+                </div>
                 <div className="relative">
                   <div
                     className="absolute inset-y-0 right-0 rounded-sm"
                     style={{
-                      width: `${Math.min(100, a.shareOfVault * 100)}%`,
+                      width: `${Math.min(100, a.marketUtilization * 100)}%`,
                       background: ROW_FILL[bucket],
                     }}
                     aria-hidden
                   />
                   <div className="relative px-2 py-0.5 text-right text-[13px] text-[var(--color-text)]">
-                    {fmtPct(a.shareOfVault)}
+                    {fmtPct(a.marketUtilization)}
                   </div>
                 </div>
               </div>
