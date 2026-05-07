@@ -1,12 +1,26 @@
 import { getEthenaPositions, getMarketPositionsBulk } from "@/lib/tokenlogic/positions"
 import { getMarketAggregates, type MarketReserve } from "@/lib/tokenlogic/markets"
+import {
+  getEthenaMorphoPositions,
+  getMorphoVaultsBulk,
+  MORPHO_CHAINS,
+  type MorphoVaultDetail,
+} from "@/lib/morpho/positions"
 import { isEthenaWallet } from "@/config/wallets"
 import { computeReserveRecursion } from "@/lib/recursion/score"
+import { classify, isEthenaStack } from "@/lib/recursion/classify"
+
+export type Protocol = "AAVE V3" | "MORPHO"
 
 export interface FootprintRow {
+  protocol: Protocol
   chain: string
   marketKey: string
   reserveSymbol: string
+  /** Morpho-only: human-readable vault name (e.g. "Sentora PYUSD Core"). */
+  vaultName?: string
+  /** Morpho-only: vault contract address for routing to a future drill-down. */
+  vaultAddress?: string
   ethenaSuppliedUsd: number
   reserveAggregateDeposits?: number
   shareOfReserve?: number
@@ -20,19 +34,40 @@ export interface FootprintResult {
   freshness: string | undefined
   failedWallets: string[]
   failedMarkets: string[]
-  /** $-weighted average recursion score across all reserves where Ethena has
-   * supply: Σ(supply_i × recursion_i) / Σ(supply_i). */
+  failedMorpho: string[]
   weightedRecursion: number
-  /** Whether the weighted average is approximate (any contributing reserve
-   * was sampled from the first page only). */
   weightedRecursionApprox: boolean
 }
 
+const clamp = (n: number) => Math.max(0, Math.min(1, n))
+
+/** Recursion share for a Morpho vault: fraction of TVL allocated to markets
+ * whose collateral OR loan asset is in the Ethena stack (Tier-1 or PT). */
+function morphoVaultRecursionShare(vault: MorphoVaultDetail): number {
+  if (vault.totalAssetsUsd <= 0) return 0
+  let recursiveAlloc = 0
+  for (const a of vault.allocation) {
+    const colBucket = a.collateralSymbol ? classify(a.collateralSymbol) : "OTHER"
+    const loanBucket = a.loanSymbol ? classify(a.loanSymbol) : "OTHER"
+    if (isEthenaStack(colBucket) || isEthenaStack(loanBucket)) {
+      recursiveAlloc += a.supplyAssetsUsd
+    }
+  }
+  return clamp(recursiveAlloc / vault.totalAssetsUsd)
+}
+
 export async function loadFootprint(): Promise<FootprintResult> {
-  const [{ rows: positions, failedWallets }, aggregatesByKey] = await Promise.all([
+  const [
+    { rows: aavePositions, failedWallets },
+    aggregatesByKey,
+    { positions: morphoPositions, failedWallets: failedMorpho },
+  ] = await Promise.all([
     getEthenaPositions(),
     getMarketAggregates(),
+    getEthenaMorphoPositions(),
   ])
+
+  // ───────────────────── Aave footprint
 
   const aggBySymbol = new Map<string, MarketReserve>()
   for (const agg of aggregatesByKey.values()) {
@@ -42,9 +77,12 @@ export async function loadFootprint(): Promise<FootprintResult> {
   const ethenaSupplyTotalByReserve = new Map<string, number>()
   const ethenaBorrowTotalByReserve = new Map<string, number>()
   const ethenaSupplyByUserKey = new Map<string, Map<string, number>>()
-  const reserveMeta = new Map<string, { chain: string; marketKey: string; reserveSymbol: string }>()
+  const reserveMeta = new Map<
+    string,
+    { chain: string; marketKey: string; reserveSymbol: string }
+  >()
 
-  for (const p of positions) {
+  for (const p of aavePositions) {
     if (!isEthenaWallet(p.userAddress)) continue
     for (const s of p.supplies) {
       const k = `${p.marketKey}:${s.symbol}`
@@ -64,19 +102,15 @@ export async function loadFootprint(): Promise<FootprintResult> {
     }
   }
 
-  // Fan out one-page samples for every market Ethena touches. This is the
-  // cap that keeps View A under Vercel Hobby's 10s function timeout — full
-  // pagination per market would take 30-60s on busy markets.
-  const ethenaMarkets = Array.from(
+  const ethenaAaveMarkets = Array.from(
     new Set(
-      positions
-        .filter((p) => isEthenaWallet(p.userAddress))
-        .map((p) => p.marketKey),
+      aavePositions.filter((p) => isEthenaWallet(p.userAddress)).map((p) => p.marketKey),
     ),
   )
-  const { byMarket: marketSamples, failedMarkets } = await getMarketPositionsBulk(ethenaMarkets)
+  const { byMarket: marketSamples, failedMarkets } =
+    await getMarketPositionsBulk(ethenaAaveMarkets)
 
-  function computeRecursion(marketKey: string, reserveSymbol: string) {
+  function aaveRecursion(marketKey: string, reserveSymbol: string) {
     const agg = aggBySymbol.get(`${marketKey}:${reserveSymbol}`)
     const sample = marketSamples.get(marketKey)
     if (!agg || !sample) return undefined
@@ -103,10 +137,11 @@ export async function loadFootprint(): Promise<FootprintResult> {
     const supplied = ethenaSupplyTotalByReserve.get(k) ?? 0
     const borrowed = ethenaBorrowTotalByReserve.get(k) ?? 0
     const agg = aggBySymbol.get(k)
-    const recursion = supplied > 0 ? computeRecursion(meta.marketKey, meta.reserveSymbol) : undefined
+    const recursion = supplied > 0 ? aaveRecursion(meta.marketKey, meta.reserveSymbol) : undefined
 
     if (supplied > 0) {
       out.push({
+        protocol: "AAVE V3",
         chain: meta.chain,
         marketKey: meta.marketKey,
         reserveSymbol: meta.reserveSymbol,
@@ -125,6 +160,7 @@ export async function loadFootprint(): Promise<FootprintResult> {
     }
     if (borrowed > 0) {
       out.push({
+        protocol: "AAVE V3",
         chain: meta.chain,
         marketKey: meta.marketKey,
         reserveSymbol: meta.reserveSymbol,
@@ -134,6 +170,70 @@ export async function loadFootprint(): Promise<FootprintResult> {
     }
   }
 
+  // ───────────────────── Morpho footprint
+
+  const morphoTotalByVault = new Map<string, number>()
+  const morphoMeta = new Map<
+    string,
+    {
+      chain: "ethereum" | "base"
+      vaultAddress: string
+      vaultName: string
+      vaultAssetSymbol: string
+    }
+  >()
+  for (const m of morphoPositions) {
+    const key = `${m.chain}:${m.vaultAddress.toLowerCase()}`
+    morphoMeta.set(key, {
+      chain: m.chain,
+      vaultAddress: m.vaultAddress,
+      vaultName: m.vaultName,
+      vaultAssetSymbol: m.vaultAssetSymbol,
+    })
+    morphoTotalByVault.set(key, (morphoTotalByVault.get(key) ?? 0) + m.ethenaSuppliedUsd)
+  }
+
+  const vaultRefs = Array.from(morphoMeta.values()).map((m) => ({
+    address: m.vaultAddress,
+    chain: m.chain,
+    chainId: MORPHO_CHAINS.find((c) => c.chain === m.chain)!.chainId,
+  }))
+  const vaultsByKey: Map<string, MorphoVaultDetail> =
+    vaultRefs.length > 0 ? await getMorphoVaultsBulk(vaultRefs) : new Map()
+
+  for (const [key, meta] of morphoMeta.entries()) {
+    const supplied = morphoTotalByVault.get(key) ?? 0
+    if (supplied <= 0) continue
+    const vault = vaultsByKey.get(key)
+    let recursionScore: number | undefined
+    let shareOfReserve: number | undefined
+    let totalAssets: number | undefined
+    if (vault) {
+      totalAssets = vault.totalAssetsUsd
+      shareOfReserve = vault.totalAssetsUsd > 0 ? supplied / vault.totalAssetsUsd : undefined
+      const vaultRecursion = morphoVaultRecursionShare(vault)
+      recursionScore = clamp(shareOfReserve ?? 0) * vaultRecursion
+      weightedNumerator += supplied * recursionScore
+      weightedDenominator += supplied
+    }
+    out.push({
+      protocol: "MORPHO",
+      chain: meta.chain,
+      marketKey: `morpho:${meta.chain}:${meta.vaultAddress}`,
+      reserveSymbol: meta.vaultAssetSymbol,
+      vaultName: meta.vaultName,
+      vaultAddress: meta.vaultAddress,
+      ethenaSuppliedUsd: supplied,
+      reserveAggregateDeposits: totalAssets,
+      shareOfReserve,
+      recursionScore,
+      recursionApprox: false,
+      isAnomalyBorrow: false,
+    })
+  }
+
+  // ───────────────────── Sort + freshness
+
   const rows = out.sort((a, b) => {
     const ra = a.recursionScore ?? 0
     const rb = b.recursionScore ?? 0
@@ -141,18 +241,20 @@ export async function loadFootprint(): Promise<FootprintResult> {
     return Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd)
   })
 
-  const freshness = positions
+  const freshness = aavePositions
     .map((p) => p.latestBlockDay)
     .sort()
     .pop()
 
-  const weightedRecursion = weightedDenominator > 0 ? weightedNumerator / weightedDenominator : 0
+  const weightedRecursion =
+    weightedDenominator > 0 ? weightedNumerator / weightedDenominator : 0
 
   return {
     rows,
     freshness,
     failedWallets,
     failedMarkets,
+    failedMorpho,
     weightedRecursion,
     weightedRecursionApprox: weightedAnyApprox,
   }
