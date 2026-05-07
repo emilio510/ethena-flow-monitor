@@ -18,13 +18,17 @@ export function KpiCard({
   tone?: Tone
 }) {
   return (
-    <div className="border border-[var(--color-border)] bg-[var(--color-bg-card)] p-4">
-      <div className="text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
+    <div className="rounded-lg bg-[var(--color-bg-card)] px-5 py-4">
+      <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-text-dim)]">
         {label}
       </div>
-      <div className={`mt-1 text-2xl ${VALUE_TONE[tone]}`}>{value}</div>
+      <div
+        className={`mono mt-2 text-[28px] font-semibold leading-[1.1] tracking-tight ${VALUE_TONE[tone]}`}
+      >
+        {value}
+      </div>
       {subValue && (
-        <div className="mt-1 text-xs text-[var(--color-text-muted)]">{subValue}</div>
+        <div className="mt-1.5 text-[11px] text-[var(--color-text-ghost)]">{subValue}</div>
       )}
     </div>
   )

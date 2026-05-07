@@ -1,11 +1,16 @@
 type Variant = "ethena" | "pt" | "anomaly" | "passive" | "default"
 
 const STYLES: Record<Variant, string> = {
-  ethena: "border-[var(--color-success)]   text-[var(--color-success)]",
-  pt: "border-[var(--color-pt-tag)]    text-[var(--color-pt-tag)]",
-  anomaly: "border-[var(--color-recursion)] text-[var(--color-recursion)]",
-  passive: "border-[var(--color-success)]   text-[var(--color-success)]",
-  default: "border-[var(--color-border)]    text-[var(--color-text-muted)]",
+  ethena:
+    "border-[color:rgb(52_211_153_/_0.4)]   text-[var(--color-success)]   bg-[color:rgb(52_211_153_/_0.06)]",
+  pt:
+    "border-[color:rgb(245_158_11_/_0.4)]   text-[var(--color-pt-tag)]    bg-[color:rgb(245_158_11_/_0.06)]",
+  anomaly:
+    "border-[color:rgb(239_68_68_/_0.4)]    text-[var(--color-recursion)] bg-[color:rgb(239_68_68_/_0.06)]",
+  passive:
+    "border-[color:rgb(52_211_153_/_0.4)]   text-[var(--color-success)]   bg-[color:rgb(52_211_153_/_0.06)]",
+  default:
+    "border-[var(--color-border-subtle)]    text-[var(--color-text-dim)]",
 }
 
 export function Tag({
@@ -17,7 +22,7 @@ export function Tag({
 }) {
   return (
     <span
-      className={`inline-block rounded border px-2 py-0.5 text-xs uppercase tracking-wider ${STYLES[variant]}`}
+      className={`inline-flex items-center rounded-md border px-2 py-[3px] text-[10px] font-medium uppercase tracking-[0.08em] ${STYLES[variant]}`}
     >
       {children}
     </span>

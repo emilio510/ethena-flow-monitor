@@ -10,22 +10,23 @@ export function ConcentrationPanel({
   top10: number
 }) {
   return (
-    <div className="border border-[var(--color-border)] p-4">
-      <div className="mb-3 text-[10px] uppercase tracking-wider text-[var(--color-accent)]">
+    <div className="rounded-lg bg-[var(--color-bg-card)] p-6">
+      <div className="mb-5 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-text-dim)]">
         Concentration
       </div>
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-3 gap-6">
         {[
           { label: "Top 1", value: top1 },
           { label: "Top 5", value: top5 },
           { label: "Top 10", value: top10 },
         ].map((c) => (
-          <div
-            key={c.label}
-            className="border border-[var(--color-border)] bg-[var(--color-bg-card)] p-3"
-          >
-            <div className="text-[10px] uppercase text-[var(--color-text-muted)]">{c.label}</div>
-            <div className="mt-1 text-xl text-[var(--color-accent)]">{fmtPct(c.value)}</div>
+          <div key={c.label}>
+            <div className="text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-text-ghost)]">
+              {c.label}
+            </div>
+            <div className="mono mt-2 text-2xl font-semibold tracking-tight text-[var(--color-accent)]">
+              {fmtPct(c.value)}
+            </div>
           </div>
         ))}
       </div>

@@ -6,6 +6,7 @@ import { KpiStrip } from "@/components/kpi-strip"
 import { ConcentrationPanel } from "@/components/concentration-panel"
 import { DepositorsTable } from "@/components/depositors-table"
 import { RecursionPanel } from "@/components/recursion-panel"
+import { ChainIcon } from "@/components/chain-icon"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import { isChain } from "@/config/markets"
 
@@ -45,12 +46,21 @@ export default async function Page({
   return (
     <main>
       <Header freshness={view.freshness} />
-      <section className="px-6 py-6">
-        <h1 className="mb-1 text-xl uppercase tracking-wider">
-          <span className="text-[var(--color-accent)]">{symbol}</span>
-          <span className="ml-3 text-[var(--color-text-muted)]">on {chain}</span>
-        </h1>
-        <div className="mb-4 text-xs text-[var(--color-text-muted)]">{view.marketKey}</div>
+      <section className="px-8 pb-12">
+        <div className="mb-7 flex items-center gap-3">
+          <ChainIcon chain={chain} size={28} />
+          <div className="flex items-baseline gap-3">
+            <h1 className="mono text-[28px] font-semibold tracking-tight text-[var(--color-text)]">
+              {symbol}
+            </h1>
+            <span className="text-sm text-[var(--color-text-dim)]">
+              on <span className="capitalize">{chain}</span>
+            </span>
+            <span className="mono text-[11px] text-[var(--color-text-ghost)]">
+              {view.marketKey}
+            </span>
+          </div>
+        </div>
 
         <KpiStrip>
           <KpiCard label="Total supplied" value={fmtUsd(view.totalSupplyUsd)} />
@@ -64,12 +74,12 @@ export default async function Page({
           <KpiCard
             label="Recursion score"
             value={fmtPct(view.recursion.recursionScore)}
-            subValue={view.recursionApprox ? "approx — sampled" : undefined}
+            subValue={view.recursionApprox ? "approx, sampled" : undefined}
             tone="recursion"
           />
         </KpiStrip>
 
-        <div className="mt-6 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
           <ConcentrationPanel {...view.concentration} />
           <RecursionPanel
             ethenaCollateralBorrowShare={view.recursion.ethenaCollateralBorrowShare}
@@ -77,8 +87,8 @@ export default async function Page({
           />
         </div>
 
-        <div className="mt-6">
-          <h2 className="mb-2 text-[10px] uppercase tracking-wider text-[var(--color-accent)]">
+        <div className="mt-8">
+          <h2 className="mb-4 text-[10px] font-medium uppercase tracking-[0.12em] text-[var(--color-text-dim)]">
             Top depositors
           </h2>
           <DepositorsTable rows={view.topDepositors} totalSupplyUsd={view.totalSupplyUsd} />
