@@ -32,6 +32,14 @@ export async function ethenaFetch<T = unknown>(
     res = await fetch(`${ENDPOINT}${path}`, {
       cache: "no-store",
       signal: AbortSignal.timeout(timeoutMs),
+      headers: {
+        // app.ethena.fi sits behind a CDN that 403s the default Node UA;
+        // pose as a regular browser so the public transparency endpoints
+        // respond. We're not bypassing auth — these paths have none.
+        "User-Agent":
+          "Mozilla/5.0 (compatible; EthenaFlowMonitor/1.0; +https://ethena-flow-monitor.vercel.app)",
+        Accept: "application/json",
+      },
     })
   } catch (err) {
     if (err instanceof DOMException && err.name === "TimeoutError") {
