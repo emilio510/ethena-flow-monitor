@@ -39,6 +39,10 @@ export interface FootprintResult {
   weightedRecursionApprox: boolean
 }
 
+/** Drop dust rows below this threshold so the table only shows meaningful
+ * Ethena exposure. Tunable; $1M default per user feedback. */
+const MIN_DUST_USD = 1_000_000
+
 const clamp = (n: number) => Math.max(0, Math.min(1, n))
 
 /** Recursion share for a Morpho vault: fraction of TVL allocated to markets
@@ -234,12 +238,14 @@ export async function loadFootprint(): Promise<FootprintResult> {
 
   // ───────────────────── Sort + freshness
 
-  const rows = out.sort((a, b) => {
-    const ra = a.recursionScore ?? 0
-    const rb = b.recursionScore ?? 0
-    if (rb !== ra) return rb - ra
-    return Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd)
-  })
+  const rows = out
+    .filter((r) => Math.abs(r.ethenaSuppliedUsd) >= MIN_DUST_USD)
+    .sort((a, b) => {
+      const ra = a.recursionScore ?? 0
+      const rb = b.recursionScore ?? 0
+      if (rb !== ra) return rb - ra
+      return Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd)
+    })
 
   const freshness = aavePositions
     .map((p) => p.latestBlockDay)
