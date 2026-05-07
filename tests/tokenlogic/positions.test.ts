@@ -28,6 +28,7 @@ beforeEach(() => {
   vi.unstubAllGlobals()
   vi.stubEnv("TOKENLOGIC_API_KEY", "test")
   vi.stubEnv("TOKENLOGIC_API_BASE_URL", "https://x")
+  vi.stubEnv("ALCHEMY_KEY", "test-alchemy")
 })
 
 describe("getEthenaPositions", () => {

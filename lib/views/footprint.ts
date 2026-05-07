@@ -6,6 +6,7 @@ import {
   MORPHO_CHAINS,
   type MorphoVaultDetail,
 } from "@/lib/morpho/positions"
+import { getEthenaIdleBalances, type IdleBalanceResult } from "@/lib/onchain/balances"
 import { isEthenaWallet } from "@/config/wallets"
 import { computeReserveRecursion } from "@/lib/recursion/score"
 import { classify, isEthenaStack } from "@/lib/recursion/classify"
@@ -37,6 +38,19 @@ export interface FootprintResult {
   failedMorpho: string[]
   weightedRecursion: number
   weightedRecursionApprox: boolean
+  /** Total $ Ethena has supplied across Aave + Morpho (sum of all deployed
+   *  supply positions). Equals the existing landing-page "Total supplied" KPI. */
+  deployedUsd: number
+  /** Idle backing balances (per-token aggregate) sitting in the 11 wallets,
+   *  not deployed in any lending market. */
+  idle: IdleBalanceResult
+  /** Recursive looping in USD = weightedRecursion × deployed.
+   *  This is the slice of Ethena's stack actually being levered. */
+  recursiveUsd: number
+  /** True recursion share = recursiveUsd / (deployed + idle). Headline figure
+   *  on View A — the share of Ethena's total backing tied up in recursive
+   *  loops, accounting for the idle reserves that don't lever anything. */
+  trueRecursionShare: number
 }
 
 /** Drop dust rows below this threshold so the table only shows meaningful
@@ -74,10 +88,12 @@ export async function loadFootprint(): Promise<FootprintResult> {
     { rows: aavePositions, failedWallets },
     aggregatesByKey,
     { positions: morphoPositions, failedWallets: failedMorpho },
+    idle,
   ] = await Promise.all([
     getEthenaPositions(),
     getMarketAggregates(),
     getEthenaMorphoPositions(),
+    getEthenaIdleBalances(),
   ])
 
   // ───────────────────── Aave footprint
@@ -267,6 +283,16 @@ export async function loadFootprint(): Promise<FootprintResult> {
   const weightedRecursion =
     weightedDenominator > 0 ? weightedNumerator / weightedDenominator : 0
 
+  // Deployed = total Ethena supply across Aave + Morpho (positive rows only,
+  // anomaly borrows are negative and excluded).
+  const deployedUsd = rows
+    .filter((r) => !r.isAnomalyBorrow)
+    .reduce((a, r) => a + r.ethenaSuppliedUsd, 0)
+  const recursiveUsd = weightedRecursion * deployedUsd
+  const totalBacking = deployedUsd + idle.totalUsd
+  const trueRecursionShare =
+    totalBacking > 0 ? clamp(recursiveUsd / totalBacking) : 0
+
   return {
     rows,
     freshness,
@@ -275,5 +301,9 @@ export async function loadFootprint(): Promise<FootprintResult> {
     failedMorpho,
     weightedRecursion,
     weightedRecursionApprox: weightedAnyApprox,
+    deployedUsd,
+    idle,
+    recursiveUsd,
+    trueRecursionShare,
   }
 }

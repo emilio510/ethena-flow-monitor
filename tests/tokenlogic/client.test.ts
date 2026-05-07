@@ -6,6 +6,7 @@ beforeEach(() => {
   vi.unstubAllGlobals()
   vi.stubEnv("TOKENLOGIC_API_KEY", "test-key")
   vi.stubEnv("TOKENLOGIC_API_BASE_URL", "https://api.tokenlogic.xyz")
+  vi.stubEnv("ALCHEMY_KEY", "test-alchemy")
 })
 
 describe("tlFetch", () => {
