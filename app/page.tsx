@@ -4,7 +4,6 @@ import { KpiCard } from "@/components/kpi-card"
 import { KpiStrip } from "@/components/kpi-strip"
 import { FootprintTable } from "@/components/footprint-table"
 import { IdleBackingTable } from "@/components/idle-backing-table"
-import { DelegatedBackingTable } from "@/components/delegated-backing-table"
 import { fmtUsd, fmtPct } from "@/lib/format"
 
 // 1-hour ISR: Ethena's exposure shifts on the order of hours/days, so a
@@ -26,16 +25,11 @@ export default async function Page() {
     deployedUsd,
     idle,
     trueRecursionShare,
-    ethena,
   } = await loadFootprint()
   const reserveCount = new Set(rows.map((r) => `${r.marketKey}:${r.reserveSymbol}`)).size
   const chainCount = new Set(rows.map((r) => r.chain)).size
   const anomalyCount = rows.filter((r) => r.isAnomalyBorrow).length
-  // Use Ethena's official total when their API is up; fall back to our
-  // independently-measured on-chain total otherwise.
-  const totalBacking = ethena.failed
-    ? deployedUsd + idle.totalUsd
-    : ethena.totalBackingUsd
+  const totalBacking = deployedUsd + idle.totalUsd
 
   return (
     <main>
@@ -46,17 +40,8 @@ export default async function Page() {
         </h1>
         <KpiStrip>
           <KpiCard label="Deployed in lending" value={fmtUsd(deployedUsd)} />
-          <KpiCard label="Idle (on-chain)" value={fmtUsd(idle.totalUsd)} />
-          <KpiCard
-            label="Delegated to CEX"
-            value={ethena.failed ? "—" : fmtUsd(ethena.delegatedUsd)}
-            subValue={ethena.failed ? "ethena api down" : "funding-rate harvest"}
-          />
-          <KpiCard
-            label="Total backing"
-            value={fmtUsd(totalBacking)}
-            subValue={ethena.failed ? "on-chain only (CEX feed down)" : "via ethena.fi"}
-          />
+          <KpiCard label="Idle backing" value={fmtUsd(idle.totalUsd)} />
+          <KpiCard label="Total backing" value={fmtUsd(totalBacking)} />
           <KpiCard
             label="True recursion"
             value={fmtPct(trueRecursionShare)}
@@ -79,15 +64,8 @@ export default async function Page() {
         <div className="mt-6">
           <FootprintTable rows={rows} />
         </div>
-        <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <div className="mt-8">
           <IdleBackingTable rows={idle.rows} total={idle.totalUsd} />
-          {ethena.failed ? null : (
-            <DelegatedBackingTable
-              rows={ethena.byExchange}
-              total={ethena.delegatedUsd}
-              reserveFundUsd={ethena.reserveFundUsd}
-            />
-          )}
         </div>
       </section>
     </main>
