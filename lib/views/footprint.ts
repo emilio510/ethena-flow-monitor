@@ -268,12 +268,7 @@ export async function loadFootprint(): Promise<FootprintResult> {
 
   const rows = out
     .filter((r) => Math.abs(r.ethenaSuppliedUsd) >= MIN_DUST_USD)
-    .sort((a, b) => {
-      const ra = a.recursionScore ?? 0
-      const rb = b.recursionScore ?? 0
-      if (rb !== ra) return rb - ra
-      return Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd)
-    })
+    .sort((a, b) => Math.abs(b.ethenaSuppliedUsd) - Math.abs(a.ethenaSuppliedUsd))
 
   const freshness = aavePositions
     .map((p) => p.latestBlockDay)

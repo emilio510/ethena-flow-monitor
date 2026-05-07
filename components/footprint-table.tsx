@@ -37,7 +37,13 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
               <ChainIcon chain={r.chain} size={18} />
               <span className="text-[13px] capitalize text-[var(--color-text)]">{r.chain}</span>
             </div>
-            <div className="text-[10px] uppercase tracking-[0.08em] text-[var(--color-text-dim)]">
+            <div
+              className={`text-[12px] uppercase tracking-[0.08em] ${
+                r.protocol === "MORPHO"
+                  ? "text-[var(--color-success)]"
+                  : "text-[var(--color-text)]"
+              }`}
+            >
               {r.protocol}
             </div>
             <div className="min-w-0">
