@@ -2,7 +2,7 @@
 
 **Date:** 2026-05-06
 **Status:** Draft (pre-implementation)
-**Owner:** emile@tokenlogic.xyz
+**Owner:** TokenLogic
 
 ## Purpose
 
