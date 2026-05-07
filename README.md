@@ -97,6 +97,10 @@ A market is "recursive" when either its collateral or its loan asset is in TIER_
 - **Morpho Blue** — Ethereum and Base. Both V1 (MetaMorpho) and V2 vaults. V2 adapters chain through to underlying V1 vaults transparently.
 - **Idle balances** — Ethereum mainnet (validated to match Debank's bundle total). The dashboard probed the other four chains and the wallets hold ≈$0 of trusted stables there.
 
+### Not tracked: ~13% off-chain (CEX-delegated) backing
+
+Ethena's backing splits roughly **~87% on-chain / ~13% delegated to centralised exchanges**. The CEX portion sits at Binance, Bybit, Coinbase International, Deribit, OKX, Bitget as collateral for the perp shorts that earn the funding-rate spread (the delta-neutral basis trade) and is **not visible on-chain**. View A surfaces a footnote linking to [`app.ethena.fi/dashboards/transparency`](https://app.ethena.fi/dashboards/transparency) for the full notional including that slice. We attempted a direct Ethena-API integration earlier; their CDN blocks Vercel's serverless egress IPs, so the dashboard takes the honest-disclaimer path instead.
+
 ## Data sources
 
 | Source                                     | What for                                                              |
@@ -196,6 +200,7 @@ If we ever upgrade to Pro, removing the sample cap and adding a Vercel Cron warm
 - **TokenLogic indexer staleness on MegaETH** — at the time of writing, 39 orphan USDm borrowers are missing supply data, which slightly understates recursion on the USDm reserve. The data team is working on it.
 - **MegaETH chainId mismatch** — TokenLogic indexes the chain at chainId 6342; Alchemy's `megaeth-mainnet` endpoint returns 4326 (likely a different MegaETH variant). The dashboard avoids this conflict by only doing on-chain reads on the chains where it's needed (idle balances are entirely on Ethereum).
 - **Idle balance scope** — Ethereum-only by design. The other four chains were probed and hold ~$0 of the curated stables; if that ever changes the per-chain entry in `config/idle-tokens.ts` can be repopulated.
+- **TokenLogic schema drift** — TL has shipped silent type changes on the user-positions and markets endpoints (e.g. number → comma-separated string, `lastUpdated` flipping to `null`). The zod parsers in `lib/tokenlogic/` use permissive helpers (`numericLike`, `NumberArrayOrCsv`) that accept multiple encodings. **Read [`docs/tokenlogic-api.md`](docs/tokenlogic-api.md) before adding new endpoint calls** and prefer the same pattern over bare `z.number()`.
 
 ## Validation
 
