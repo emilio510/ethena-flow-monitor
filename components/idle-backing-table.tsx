@@ -1,17 +1,14 @@
 import { fmtUsd, fmtPct } from "@/lib/format"
 import type { IdleBalanceRow } from "@/lib/onchain/balances"
-import type { Chain } from "@/config/markets"
 
 const COLS = "grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)]"
 
 export function IdleBackingTable({
   rows,
   total,
-  uncoveredChains,
 }: {
   rows: IdleBalanceRow[]
   total: number
-  uncoveredChains: Chain[]
 }) {
   return (
     <div>
@@ -70,12 +67,6 @@ export function IdleBackingTable({
           </div>
         ) : null}
       </div>
-      {uncoveredChains.length > 0 ? (
-        <div className="mt-2 text-[10px] text-[var(--color-text-ghost)]">
-          Coverage gap: {uncoveredChains.join(", ")} not yet pulled — totals
-          may under-count by the idle held on these chains.
-        </div>
-      ) : null}
     </div>
   )
 }

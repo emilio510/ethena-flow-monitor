@@ -40,15 +40,7 @@ export default async function Page() {
         </h1>
         <KpiStrip>
           <KpiCard label="Deployed in lending" value={fmtUsd(deployedUsd)} />
-          <KpiCard
-            label="Idle backing"
-            value={fmtUsd(idle.totalUsd)}
-            subValue={
-              idle.uncoveredChains.length > 0
-                ? `+ ${idle.uncoveredChains.join(", ")} pending`
-                : undefined
-            }
-          />
+          <KpiCard label="Idle backing" value={fmtUsd(idle.totalUsd)} />
           <KpiCard label="Total backing" value={fmtUsd(totalBacking)} />
           <KpiCard
             label="True recursion"
@@ -73,11 +65,7 @@ export default async function Page() {
           <FootprintTable rows={rows} />
         </div>
         <div className="mt-8">
-          <IdleBackingTable
-            rows={idle.rows}
-            total={idle.totalUsd}
-            uncoveredChains={idle.uncoveredChains}
-          />
+          <IdleBackingTable rows={idle.rows} total={idle.totalUsd} />
         </div>
       </section>
     </main>
