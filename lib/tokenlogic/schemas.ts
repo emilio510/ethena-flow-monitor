@@ -92,5 +92,6 @@ export type UserPositionRow = z.infer<typeof UserPositionRow>
 
 export const UserPositionsResponse = z.object({
   data: z.array(UserPositionRow),
-  lastUpdated: z.string().optional(),
+  // TokenLogic sends `null` for empty data sets and `string` otherwise.
+  lastUpdated: z.string().nullable().optional(),
 })
