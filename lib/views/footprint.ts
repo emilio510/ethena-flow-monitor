@@ -1,15 +1,10 @@
-import {
-  getEthenaPositions,
-  getMarketPositionsBulk,
-  type EthenaPositionsResult,
-} from "@/lib/tokenlogic/positions"
+import { getEthenaPositions, getMarketPositionsBulk } from "@/lib/tokenlogic/positions"
 import { getMarketAggregates, type MarketReserve } from "@/lib/tokenlogic/markets"
 import {
   getEthenaMorphoPositions,
   getMorphoVaultsBulk,
   MORPHO_CHAINS,
   type MorphoVaultDetail,
-  type EthenaMorphoResult,
 } from "@/lib/morpho/positions"
 import { getEthenaIdleBalances, type IdleBalanceResult } from "@/lib/onchain/balances"
 import { getEthenaBacking, type EthenaBackingResult } from "@/lib/ethena/transparency"
@@ -95,56 +90,19 @@ function morphoVaultRecursionShare(vault: MorphoVaultDetail): number {
 }
 
 export async function loadFootprint(): Promise<FootprintResult> {
-  // Use allSettled so a single fetcher's failure (e.g. TokenLogic /markets
-  // returning an unexpected shape, or a network blip) doesn't take down the
-  // entire dashboard. Each fetcher already has internal partial-failure
-  // tolerance for its own fan-out; this is the *outer* safety net.
-  const settled = await Promise.allSettled([
+  const [
+    { rows: aavePositions, failedWallets },
+    aggregatesByKey,
+    { positions: morphoPositions, failedWallets: failedMorpho },
+    idle,
+    ethena,
+  ] = await Promise.all([
     getEthenaPositions(),
     getMarketAggregates(),
     getEthenaMorphoPositions(),
     getEthenaIdleBalances(),
     getEthenaBacking(),
   ])
-
-  const safeUnwrap = <T>(idx: number, name: string, fallback: T): T => {
-    const r = settled[idx]!
-    if (r.status === "fulfilled") return r.value as T
-    const reason = r.reason instanceof Error ? r.reason.message : String(r.reason)
-    console.warn(`[ethena-flow-monitor] ${name} fetcher threw: ${reason}`)
-    return fallback
-  }
-
-  const { rows: aavePositions, failedWallets } = safeUnwrap<EthenaPositionsResult>(
-    0,
-    "getEthenaPositions",
-    { rows: [], failedWallets: [] },
-  )
-  const aggregatesByKey = safeUnwrap<Map<string, MarketReserve>>(
-    1,
-    "getMarketAggregates",
-    new Map(),
-  )
-  const { positions: morphoPositions, failedWallets: failedMorpho } =
-    safeUnwrap<EthenaMorphoResult>(2, "getEthenaMorphoPositions", {
-      positions: [],
-      failedWallets: [],
-    })
-  const idle = safeUnwrap(3, "getEthenaIdleBalances", {
-    rows: [],
-    totalUsd: 0,
-    failures: [],
-    uncoveredChains: [],
-  } as IdleBalanceResult)
-  const ethena = safeUnwrap(4, "getEthenaBacking", {
-    totalBackingUsd: 0,
-    reserveFundUsd: 0,
-    tokenSupplyUsd: 0,
-    delegatedUsd: 0,
-    undelegatedReportedUsd: 0,
-    byExchange: [],
-    failed: true,
-  } as EthenaBackingResult)
 
   // ───────────────────── Aave footprint
 
