@@ -61,6 +61,22 @@ export default async function Page() {
           <KpiCard label="Reserves touched" value={String(reserveCount)} />
           <KpiCard label="Borrow anomalies" value={String(anomalyCount)} />
         </KpiStrip>
+        <p className="mt-3 text-[11px] text-[var(--color-text-ghost)]">
+          Note: this dashboard tracks the ~87% of Ethena's backing that sits
+          on-chain (deployed in lending + idle in wallets). The remaining
+          ~13% is delegated to centralised exchanges as collateral for
+          delta-neutral funding-rate harvest and is not visible on-chain;
+          see{" "}
+          <a
+            className="underline hover:text-[var(--color-accent)]"
+            href="https://app.ethena.fi/dashboards/transparency"
+            target="_blank"
+            rel="noreferrer"
+          >
+            app.ethena.fi/dashboards/transparency
+          </a>{" "}
+          for the full notional.
+        </p>
         <div className="mt-6">
           <FootprintTable rows={rows} />
         </div>
