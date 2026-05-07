@@ -2,6 +2,12 @@ import { Tag } from "./tag"
 import { fmtUsd, fmtPct, shortAddr } from "@/lib/format"
 import type { DepositorRow } from "@/lib/views/reserve"
 
+function rowTag(r: DepositorRow) {
+  if (r.isEthena) return <Tag variant="ethena">Ethena</Tag>
+  if (r.isLeveraged) return <Tag variant="pt">Leveraged</Tag>
+  return <Tag variant="passive">Passive</Tag>
+}
+
 export function DepositorsTable({
   rows,
   totalSupplyUsd,
@@ -15,29 +21,39 @@ export function DepositorsTable({
 
   return (
     <div className="border border-[var(--color-border)]">
-      <div className="grid grid-cols-12 border-b border-[var(--color-border)] px-3 py-2 text-[10px] uppercase tracking-wider text-[var(--color-text-muted)]">
-        <div className="col-span-1">#</div>
-        <div className="col-span-4">Wallet</div>
-        <div className="col-span-3 text-right">Supplied</div>
-        <div className="col-span-2 text-right">Share</div>
-        <div className="col-span-2 text-right">Tag</div>
+      <div className="grid grid-cols-[40px_minmax(0,1.5fr)_110px_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]">
+        <div>#</div>
+        <div>Wallet</div>
+        <div></div>
+        <div className="text-right">Supplied</div>
+        <div className="text-right">Share</div>
       </div>
-      {list.map((r, i) => (
-        <div
-          key={r.userAddress + i}
-          className="grid grid-cols-12 border-b border-[var(--color-border)] px-3 py-2 text-sm"
-        >
-          <div className="col-span-1 text-[var(--color-text-muted)]">#{i + 1}</div>
-          <div className="col-span-4 text-[var(--color-accent)]">{shortAddr(r.userAddress)}</div>
-          <div className="col-span-3 text-right">{fmtUsd(r.amountUsd)}</div>
-          <div className="col-span-2 text-right">
-            {totalSupplyUsd > 0 ? fmtPct(r.amountUsd / totalSupplyUsd) : "—"}
+      {list.map((r, i) => {
+        const share = totalSupplyUsd > 0 ? r.amountUsd / totalSupplyUsd : 0
+        return (
+          <div
+            key={r.userAddress + i}
+            className="grid grid-cols-[40px_minmax(0,1.5fr)_110px_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5"
+          >
+            <div className="text-[12px] text-[var(--color-text-ghost)]">#{i + 1}</div>
+            <div className="text-[13px] text-[var(--color-accent)]">{shortAddr(r.userAddress)}</div>
+            <div>{rowTag(r)}</div>
+            <div className="text-right text-[13px] text-[var(--color-text)]">
+              {fmtUsd(r.amountUsd)}
+            </div>
+            <div className="relative">
+              <div
+                className="absolute inset-y-0 right-0 rounded-sm bg-[color:rgb(245_204_76_/_0.12)]"
+                style={{ width: `${Math.min(100, share * 100)}%` }}
+                aria-hidden
+              />
+              <div className="relative px-2 py-0.5 text-right text-[13px] text-[var(--color-text)]">
+                {totalSupplyUsd > 0 ? fmtPct(share) : "—"}
+              </div>
+            </div>
           </div>
-          <div className="col-span-2 text-right">
-            {r.isEthena && <Tag variant="ethena">Ethena</Tag>}
-          </div>
-        </div>
-      ))}
+        )
+      })}
     </div>
   )
 }

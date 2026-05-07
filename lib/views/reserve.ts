@@ -16,6 +16,7 @@ export interface DepositorRow {
   walletLabel: string | null
   amountUsd: number
   isEthena: boolean
+  isLeveraged: boolean
 }
 
 export interface ReserveView {
@@ -63,6 +64,7 @@ export async function loadReserveView(
         walletLabel: row.walletLabel,
         amountUsd: supply.amountUsd,
         isEthena: isEthenaWallet(row.userAddress),
+        isLeveraged: (row.totalBorrowUsd ?? 0) > 0,
       })
     }
   }
