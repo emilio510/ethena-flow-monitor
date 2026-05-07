@@ -1,10 +1,13 @@
 import Link from "next/link"
+import { DataAge } from "./data-age"
 
 export function Header({
-  freshness,
+  renderedAt,
   failedWallets,
 }: {
-  freshness?: string
+  /** Server-render timestamp (epoch ms). Drives the "Updated X ago" pill so
+   *  users can see how stale the ISR-cached page is. */
+  renderedAt?: number
   failedWallets?: string[]
 }) {
   const hasFailures = failedWallets && failedWallets.length > 0
@@ -19,12 +22,7 @@ export function Header({
         <Link href="/" className="text-[22px] tracking-tight text-[var(--color-text)]">
           On-Chain Lending Risk
         </Link>
-        {freshness ? (
-          <div className="flex items-center gap-2 rounded-md border border-[color:rgb(93_214_197_/_0.3)] bg-[color:rgb(93_214_197_/_0.06)] px-2.5 py-1 text-[10px] uppercase tracking-[0.1em] text-[var(--color-success)]">
-            <span className="inline-block h-1.5 w-1.5 rounded-full bg-[var(--color-success)]" />
-            <span>Live · {freshness}</span>
-          </div>
-        ) : null}
+        {renderedAt ? <DataAge timestamp={renderedAt} /> : null}
       </div>
       {hasFailures ? (
         <div className="mx-8 mb-4 flex items-center gap-2 rounded-md bg-[color:rgb(239_68_68_/_0.08)] px-3 py-2 text-[11px] text-[var(--color-recursion)]">

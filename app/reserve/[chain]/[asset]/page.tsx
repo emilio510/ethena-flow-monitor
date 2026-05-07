@@ -10,7 +10,8 @@ import { ChainIcon } from "@/components/chain-icon"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import { isChain } from "@/config/markets"
 
-export const revalidate = 300
+// 1-hour ISR — see app/page.tsx for rationale.
+export const revalidate = 3600
 export const maxDuration = 90
 
 export default async function Page({
@@ -45,7 +46,7 @@ export default async function Page({
 
   return (
     <main>
-      <Header freshness={view.freshness} />
+      <Header renderedAt={Date.now()} />
       <section className="px-8 pb-12">
         <div className="mb-6 flex items-baseline gap-3">
           <h1 className="text-[32px] uppercase tracking-tight text-[var(--color-accent)]">

@@ -12,7 +12,8 @@ import { Tag } from "@/components/tag"
 import { VaultAllocationPanel } from "@/components/vault-allocation-panel"
 import { fmtUsd, fmtPct, shortAddr } from "@/lib/format"
 
-export const revalidate = 300
+// 1-hour ISR — see app/page.tsx for rationale.
+export const revalidate = 3600
 export const maxDuration = 90
 
 export default async function Page({
@@ -33,7 +34,7 @@ export default async function Page({
 
   return (
     <main>
-      <Header />
+      <Header renderedAt={Date.now()} />
       <section className="px-8 pb-12">
         <div className="mb-2 flex items-baseline gap-3">
           <h1 className="text-[28px] tracking-tight text-[var(--color-accent)]">

@@ -6,15 +6,19 @@ import { FootprintTable } from "@/components/footprint-table"
 import { IdleBackingTable } from "@/components/idle-backing-table"
 import { fmtUsd, fmtPct } from "@/lib/format"
 
-export const revalidate = 300
+// 1-hour ISR: Ethena's exposure shifts on the order of hours/days, so a
+// stale-by-up-to-1h cache hit beats forcing every visitor through the
+// 8-15s cold render. The unlucky 1-per-hour visitor still gets the slow
+// path in the background while we serve them the previous render.
+export const revalidate = 3600
 // View A walks every borrower across every market Ethena touches; this
 // can run 30-60s on cold load against the busy ethereum + base markets.
 export const maxDuration = 90
 
 export default async function Page() {
+  const renderedAt = Date.now()
   const {
     rows,
-    freshness,
     failedWallets,
     weightedRecursion,
     weightedRecursionApprox,
@@ -29,7 +33,7 @@ export default async function Page() {
 
   return (
     <main>
-      <Header freshness={freshness} failedWallets={failedWallets} />
+      <Header renderedAt={renderedAt} failedWallets={failedWallets} />
       <section className="px-6 py-6">
         <h1 className="mb-4 text-xl uppercase tracking-wider text-[var(--color-accent)]">
           Ethena footprint
