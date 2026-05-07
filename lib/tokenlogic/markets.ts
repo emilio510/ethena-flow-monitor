@@ -1,27 +1,33 @@
 import { z } from "zod"
 import { tlFetch } from "./client"
 
-// Rate-like fields are nullable in the upstream when a reserve has no
-// liquidity (e.g. utilization is null when both deposits and borrows are 0).
-// Default to 0 so the dashboard can still display the row.
-const numberOrNullToZero = z
-  .number()
-  .nullable()
-  .transform((v) => v ?? 0)
+// TokenLogic recently started returning some numeric fields as strings
+// (e.g. deposits: "7117.726384..."). Accept number / numeric string / null,
+// always coerce to number; treat null and "" as 0.
+const numericLike = z
+  .union([z.number(), z.string(), z.null()])
+  .transform((v) => {
+    if (v === null || v === "") return 0
+    const n = typeof v === "number" ? v : Number(v)
+    if (!Number.isFinite(n)) {
+      throw new Error(`markets: invalid numeric value: ${JSON.stringify(v)}`)
+    }
+    return n
+  })
 
 const MarketReserveRow = z.object({
   protocol: z.string(),
   market_key: z.string(),
   reserve_address: z.string(),
   reserve_symbol: z.string(),
-  deposits: z.number(),
-  borrows: z.number(),
-  available_liquidity: z.number(),
-  borrow_capacity: z.number(),
-  utilization: numberOrNullToZero,
-  borrow_apy: numberOrNullToZero,
-  supply_apy: numberOrNullToZero,
-  reserve_price: numberOrNullToZero,
+  deposits: numericLike,
+  borrows: numericLike,
+  available_liquidity: numericLike,
+  borrow_capacity: numericLike,
+  utilization: numericLike,
+  borrow_apy: numericLike,
+  supply_apy: numericLike,
+  reserve_price: numericLike,
 })
 
 const Response = z.object({ data: z.array(MarketReserveRow) })
