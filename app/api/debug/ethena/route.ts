@@ -12,6 +12,7 @@ import { fetchBackingAssets } from "@/lib/ethena"
  */
 export const dynamic = "force-dynamic"
 export const revalidate = 0
+export const runtime = "edge"
 
 export async function GET() {
   const startedAt = Date.now()
