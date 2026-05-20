@@ -1,5 +1,5 @@
 import { z } from "zod"
-import { morphoQuery, MorphoError } from "./client"
+import { morphoQuery, MorphoError, MorphoNotFoundError } from "./client"
 import { ETHENA_WALLETS } from "@/config/wallets"
 
 // Chain ids for the two Morpho deployments we cover.
@@ -269,6 +269,10 @@ export async function getEthenaMorphoPositions(): Promise<EthenaMorphoResult> {
   settled.forEach((r, i) => {
     const task = tasks[i]!
     if (r.status === "rejected") {
+      // NOT_FOUND just means the wallet has never used Morpho on this chain.
+      // That's not a fetch failure — silently skip without adding to the
+      // "failed" tally that the UI surfaces as partial-data warnings.
+      if (r.reason instanceof MorphoNotFoundError) return
       failedWallets.push(`${task.wallet}@${task.chain}`)
       const reason = r.reason instanceof Error ? r.reason.message : String(r.reason)
       console.warn(
@@ -480,6 +484,7 @@ async function resolveV2Adapter(
  *  a null payload. We treat that as "not a V1 vault" so the dispatcher can
  *  fall through to V2; any other error (timeout, 5xx, etc.) still propagates. */
 function isNotFoundError(err: unknown): boolean {
+  if (err instanceof MorphoNotFoundError) return true
   return (
     err instanceof MorphoError &&
     /no results matching|not[\s-]found/i.test(err.body)

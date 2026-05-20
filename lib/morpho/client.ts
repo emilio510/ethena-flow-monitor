@@ -43,13 +43,27 @@ export async function morphoQuery<T = unknown>(
   }
   const json = (await res.json()) as {
     data?: T
-    errors?: Array<{ message: string }>
+    errors?: Array<{ message: string; status?: string }>
   }
   if (json.errors && json.errors.length > 0) {
+    // Surface NOT_FOUND as a typed signal so callers can treat it as
+    // "wallet has never used this product on this chain" (a normal answer)
+    // instead of a fatal fetch error. Any other error kind still escalates.
+    const allNotFound = json.errors.every((e) => e.status === "NOT_FOUND")
+    if (allNotFound) {
+      throw new MorphoNotFoundError(json.errors.map((e) => e.message).join("; "))
+    }
     throw new MorphoError(200, json.errors.map((e) => e.message).join("; "))
   }
   if (!json.data) {
     throw new MorphoError(200, "Morpho response missing data field")
   }
   return json.data
+}
+
+export class MorphoNotFoundError extends Error {
+  constructor(public detail: string) {
+    super(`Morpho NOT_FOUND: ${detail}`)
+    this.name = "MorphoNotFoundError"
+  }
 }
