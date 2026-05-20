@@ -4,12 +4,18 @@ import {
   VaultNotFoundError,
   isMorphoChain,
 } from "@/lib/views/vault"
+import {
+  loadSolanaVaultView,
+  SolanaVaultNotFoundError,
+  isSolanaVaultAddress,
+} from "@/lib/views/solana-vault"
 import { Header } from "@/components/header"
 import { KpiCard } from "@/components/kpi-card"
 import { KpiStrip } from "@/components/kpi-strip"
 import { ChainIcon } from "@/components/chain-icon"
 import { Tag } from "@/components/tag"
 import { VaultAllocationPanel } from "@/components/vault-allocation-panel"
+import { SolanaCompositionPanel } from "@/components/solana-composition-panel"
 import { fmtUsd, fmtPct, shortAddr } from "@/lib/format"
 
 // 1-hour ISR — see app/page.tsx for rationale.
@@ -22,6 +28,19 @@ export default async function Page({
   params: Promise<{ chain: string; address: string }>
 }) {
   const { chain, address } = await params
+
+  if (chain === "solana") {
+    if (!isSolanaVaultAddress(address)) notFound()
+    let view
+    try {
+      view = await loadSolanaVaultView(address)
+    } catch (err) {
+      if (err instanceof SolanaVaultNotFoundError) notFound()
+      throw err
+    }
+    return <SolanaVaultPage view={view} />
+  }
+
   if (!isMorphoChain(chain)) notFound()
 
   let view
@@ -125,6 +144,75 @@ export default async function Page({
               ))
             )}
           </div>
+        </div>
+      </section>
+    </main>
+  )
+}
+
+import type { SolanaVaultView } from "@/lib/views/solana-vault"
+
+function SolanaVaultPage({ view }: { view: SolanaVaultView }) {
+  const protocolLabel = view.protocol === "KAMINO" ? "Kamino kvault" : "Jupiter Lend (Fluid)"
+  return (
+    <main>
+      <Header renderedAt={Date.now()} />
+      <section className="px-8 pb-12">
+        <div className="mb-2 flex items-baseline gap-3">
+          <h1 className="text-[28px] tracking-tight text-[var(--color-accent)]">{view.name}</h1>
+          <span className="text-[13px] text-[var(--color-text-dim)]">on</span>
+          <span className="flex items-center gap-2">
+            <ChainIcon chain="solana" size={18} />
+            <span className="text-[13px] capitalize text-[var(--color-text)]">solana</span>
+          </span>
+          <span className="text-[var(--color-text-ghost)]">·</span>
+          <span className="text-[12px] uppercase tracking-[0.05em] text-[var(--color-text-ghost)]">
+            {protocolLabel}
+          </span>
+        </div>
+        <div className="mb-7 text-[12px] text-[var(--color-text-ghost)]">
+          {view.underlyingSymbol} vault · {shortAddr(view.address)} ·{" "}
+          <a
+            className="underline hover:text-[var(--color-accent)]"
+            href={view.externalUrl}
+            target="_blank"
+            rel="noreferrer"
+          >
+            view on {view.protocol === "KAMINO" ? "kamino.com" : "jup.ag"}
+          </a>
+        </div>
+
+        <KpiStrip>
+          <KpiCard label="Vault TVL" value={fmtUsd(view.totalAssetsUsd)} />
+          <KpiCard label="Underlying" value={view.underlyingSymbol} />
+          <KpiCard label="Ethena supplied" value={fmtUsd(view.ethenaSuppliedUsd)} />
+          <KpiCard label="Ethena share" value={fmtPct(view.ethenaShareOfVault)} />
+          <KpiCard label="Utilization" value={fmtPct(view.utilization)} />
+          <KpiCard label="Supply APY" value={fmtPct(view.supplyApy)} />
+          <KpiCard
+            label="Market recursion"
+            value={fmtPct(view.marketRecursionShare)}
+            subValue="ethena-stack collateral ÷ market collateral"
+            tone="recursion"
+          />
+          <KpiCard
+            label="Recursion score"
+            value={fmtPct(view.recursionScore)}
+            subValue="ethena_share × market_recursion"
+            tone="recursion"
+          />
+        </KpiStrip>
+
+        <div className="mt-8">
+          <SolanaCompositionPanel
+            rows={view.composition}
+            title={view.protocol === "KAMINO" ? "Underlying market reserves" : "Borrowing vaults paired with this supply pool"}
+            subtitle={
+              view.protocol === "KAMINO"
+                ? "Kamino's Ethena Market — collateral side carries USDe (and a token sUSDe allowance); USDG is the debt the kvault funds. The ‘Recursive leg' row is the USDG that gets borrowed against USDe."
+                : "Each Fluid pair routes its collateral into USDG / USDe debt against the jleUSDG supply pool. The USDe → USDG row is the only flow that actively drains this vault's USDG."
+            }
+          />
         </div>
       </section>
     </main>

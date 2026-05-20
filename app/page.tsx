@@ -5,6 +5,8 @@ import { KpiStrip } from "@/components/kpi-strip"
 import { FootprintTable } from "@/components/footprint-table"
 import { IdleBackingTable } from "@/components/idle-backing-table"
 import { fmtUsd, fmtPct } from "@/lib/format"
+import { custodialValue, fetchBackingAssets, totalBacking } from "@/lib/ethena"
+import type { BackingSnapshot } from "@/lib/ethena"
 
 // 1-hour ISR: Ethena's exposure shifts on the order of hours/days, so a
 // stale-by-up-to-1h cache hit beats forcing every visitor through the
@@ -15,8 +17,22 @@ export const revalidate = 3600
 // can run 30-60s on cold load against the busy ethereum + base markets.
 export const maxDuration = 90
 
+async function safeFetchBacking(): Promise<BackingSnapshot | null> {
+  // Best-effort: if Ethena's API is down or its schema drifts, fall back to
+  // the on-chain-only view rather than 500-ing the entire page.
+  try {
+    return await fetchBackingAssets()
+  } catch {
+    return null
+  }
+}
+
 export default async function Page() {
   const renderedAt = Date.now()
+  // Fetch Ethena's snapshot first so loadFootprint can use it for Solana
+  // attribution. Cheap (single edge-cached GET) — the rest fans out behind it.
+  const ethenaSnapshot = await safeFetchBacking()
+  const footprint = await loadFootprint({ ethenaSnapshot: ethenaSnapshot ?? undefined })
   const {
     rows,
     failedWallets,
@@ -25,11 +41,23 @@ export default async function Page() {
     deployedUsd,
     idle,
     trueRecursionShare,
-  } = await loadFootprint()
+  } = footprint
   const reserveCount = new Set(rows.map((r) => `${r.marketKey}:${r.reserveSymbol}`)).size
   const chainCount = new Set(rows.map((r) => r.chain)).size
   const anomalyCount = rows.filter((r) => r.isAnomalyBorrow).length
-  const totalBacking = deployedUsd + idle.totalUsd
+  const onchainBacking = deployedUsd + idle.totalUsd
+  // Headline = Ethena's reported total when available, fall back to on-chain.
+  const ethenaTotal = ethenaSnapshot ? totalBacking(ethenaSnapshot) : null
+  const ethenaCustodial = ethenaSnapshot ? custodialValue(ethenaSnapshot) : null
+  // Verifier delta: how far our on-chain reads are from Ethena's verifiable
+  // (non-custodial) figure. Anything beyond ±2% is worth a yellow badge.
+  const ethenaVerifiable =
+    ethenaTotal !== null && ethenaCustodial !== null ? ethenaTotal - ethenaCustodial : null
+  const verifierDeltaPct =
+    ethenaVerifiable && ethenaVerifiable > 0
+      ? (onchainBacking - ethenaVerifiable) / ethenaVerifiable
+      : null
+  const verifierOk = verifierDeltaPct !== null && Math.abs(verifierDeltaPct) < 0.02
 
   return (
     <main>
@@ -39,9 +67,27 @@ export default async function Page() {
           Ethena footprint
         </h1>
         <KpiStrip>
+          <KpiCard
+            label="Total backing"
+            value={ethenaTotal !== null ? fmtUsd(ethenaTotal) : fmtUsd(onchainBacking)}
+            subValue={
+              ethenaTotal !== null && verifierDeltaPct !== null ? (
+                <span className={verifierOk ? "text-[var(--color-success)]" : undefined}>
+                  {verifierOk ? "✓" : "⚠"} on-chain {verifierDeltaPct >= 0 ? "+" : ""}
+                  {fmtPct(verifierDeltaPct)} vs Ethena
+                </span>
+              ) : (
+                "on-chain only — Ethena API unavailable"
+              )
+            }
+          />
+          <KpiCard
+            label="Custodial / off-chain"
+            value={ethenaCustodial !== null ? fmtUsd(ethenaCustodial) : "—"}
+            subValue="Copper + BTC-anchored"
+          />
           <KpiCard label="Deployed in lending" value={fmtUsd(deployedUsd)} />
           <KpiCard label="Idle backing" value={fmtUsd(idle.totalUsd)} />
-          <KpiCard label="Total backing" value={fmtUsd(totalBacking)} />
           <KpiCard
             label="True recursion"
             value={fmtPct(trueRecursionShare)}
@@ -62,20 +108,40 @@ export default async function Page() {
           <KpiCard label="Borrow anomalies" value={String(anomalyCount)} />
         </KpiStrip>
         <p className="mt-3 text-[11px] text-[var(--color-text-ghost)]">
-          Note: this dashboard tracks the ~87% of Ethena's backing that sits
-          on-chain (deployed in lending + idle in wallets). The remaining
-          ~13% is delegated to centralised exchanges as collateral for
-          delta-neutral funding-rate harvest and is not visible on-chain;
-          see{" "}
-          <a
-            className="underline hover:text-[var(--color-accent)]"
-            href="https://app.ethena.fi/dashboards/transparency"
-            target="_blank"
-            rel="noreferrer"
-          >
-            app.ethena.fi/dashboards/transparency
-          </a>{" "}
-          for the full notional.
+          {ethenaSnapshot ? (
+            <>
+              Headline figures from{" "}
+              <a
+                className="underline hover:text-[var(--color-accent)]"
+                href="https://app.ethena.fi/dashboards/backing-assets"
+                target="_blank"
+                rel="noreferrer"
+              >
+                app.ethena.fi/dashboards/backing-assets
+              </a>{" "}
+              (snapshot{" "}
+              {new Date(ethenaSnapshot.timestamp * 1000).toISOString().replace("T", " ").slice(0, 16)}
+              Z). Custodial covers Copper-held BTC/ETH backing INTX shorts and
+              CBAM's BTC-anchored institutional lending. The verifier badge
+              cross-checks our independent on-chain reads against Ethena's
+              verifiable (non-custodial) total.
+            </>
+          ) : (
+            <>
+              Note: Ethena&apos;s reporting API is currently unavailable; the
+              dashboard is showing on-chain figures only and excludes ~$31M of
+              custodial backing. See{" "}
+              <a
+                className="underline hover:text-[var(--color-accent)]"
+                href="https://app.ethena.fi/dashboards/backing-assets"
+                target="_blank"
+                rel="noreferrer"
+              >
+                app.ethena.fi/dashboards/backing-assets
+              </a>{" "}
+              for the canonical view.
+            </>
+          )}
         </p>
         <div className="mt-6">
           <FootprintTable rows={rows} />

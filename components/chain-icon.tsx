@@ -1,4 +1,4 @@
-type ChainKey = "ethereum" | "base" | "mantle" | "plasma" | "megaeth" | string
+type ChainKey = "ethereum" | "base" | "mantle" | "plasma" | "megaeth" | "solana" | string
 
 interface Meta {
   initial: string
@@ -12,6 +12,7 @@ const META: Record<ChainKey, Meta> = {
   mantle: { initial: "M", bg: "#23272d", fg: "#ffffff" },
   plasma: { initial: "P", bg: "#34d399", fg: "#0b0c0f" },
   megaeth: { initial: "M", bg: "#cccccc", fg: "#0b0c0f" },
+  solana: { initial: "◎", bg: "#9945ff", fg: "#ffffff" },
 }
 
 const FALLBACK: Meta = { initial: "?", bg: "#262932", fg: "#8b8d96" }

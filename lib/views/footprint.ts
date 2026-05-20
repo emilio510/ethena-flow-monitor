@@ -15,17 +15,26 @@ import { getEthenaIdleBalances, type IdleBalanceResult } from "@/lib/onchain/bal
 import { isEthenaWallet } from "@/config/wallets"
 import { computeReserveRecursion } from "@/lib/recursion/score"
 import { classify, isEthenaStack } from "@/lib/recursion/classify"
+import { getEthenaSolanaPositions } from "@/lib/solana"
+import type { BackingSnapshot } from "@/lib/ethena"
 
-export type Protocol = "AAVE V3" | "MORPHO"
+export type Protocol = "AAVE V3" | "MORPHO" | "KAMINO" | "JUPITER LEND"
+
+export interface FootprintOptions {
+  /** Ethena's reported backing snapshot. When provided, loadFootprint will
+   *  emit Solana rows for Kamino + Jupiter Lend using Ethena's $ attribution
+   *  and live market context from each protocol's API. */
+  ethenaSnapshot?: BackingSnapshot
+}
 
 export interface FootprintRow {
   protocol: Protocol
   chain: string
   marketKey: string
   reserveSymbol: string
-  /** Morpho-only: human-readable vault name (e.g. "Sentora PYUSD Core"). */
+  /** Morpho / Kamino / Jupiter vaults: human-readable vault name. */
   vaultName?: string
-  /** Morpho-only: vault contract address for routing to a future drill-down. */
+  /** Morpho / Kamino / Jupiter vaults: vault contract address for routing. */
   vaultAddress?: string
   ethenaSuppliedUsd: number
   reserveAggregateDeposits?: number
@@ -41,6 +50,9 @@ export interface FootprintResult {
   failedWallets: string[]
   failedMarkets: string[]
   failedMorpho: string[]
+  /** Solana protocols that returned an error (e.g. ["kamino"]). Empty
+   *  array when no snapshot was passed or both succeeded. */
+  failedSolana: string[]
   weightedRecursion: number
   weightedRecursionApprox: boolean
   /** Total $ Ethena has supplied across Aave + Morpho (sum of all deployed
@@ -88,7 +100,7 @@ function morphoVaultRecursionShare(vault: MorphoVaultDetail): number {
   return clamp(attributedBorrow / vault.totalAssetsUsd)
 }
 
-export async function loadFootprint(): Promise<FootprintResult> {
+export async function loadFootprint(opts: FootprintOptions = {}): Promise<FootprintResult> {
   // Use allSettled so a single fetcher's failure (e.g. TokenLogic returning
   // an unexpected shape, or transient rate-limiting on Vercel egress IPs)
   // doesn't take down the entire dashboard. Each fetcher already has internal
@@ -300,6 +312,24 @@ export async function loadFootprint(): Promise<FootprintResult> {
     })
   }
 
+  // ───────────────────── Solana (Kamino + Jupiter Lend)
+
+  let failedSolana: string[] = []
+  if (opts.ethenaSnapshot) {
+    const solana = await getEthenaSolanaPositions(opts.ethenaSnapshot).catch((err) => {
+      console.warn(`[ethena-flow-monitor] solana orchestrator threw: ${err instanceof Error ? err.message : String(err)}`)
+      return { rows: [], failed: ["solana"] }
+    })
+    failedSolana = solana.failed
+    for (const row of solana.rows) {
+      out.push(row)
+      // Solana rows feed the same weighted-recursion average as Aave / Morpho
+      // so the headline "Recursion (deployed)" reflects them too.
+      weightedNumerator += row.ethenaSuppliedUsd * (row.recursionScore ?? 0)
+      weightedDenominator += row.ethenaSuppliedUsd
+    }
+  }
+
   // ───────────────────── Sort + freshness
 
   const rows = out
@@ -330,6 +360,7 @@ export async function loadFootprint(): Promise<FootprintResult> {
     failedWallets,
     failedMarkets,
     failedMorpho,
+    failedSolana,
     weightedRecursion,
     weightedRecursionApprox: weightedAnyApprox,
     deployedUsd,

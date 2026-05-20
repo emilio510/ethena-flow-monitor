@@ -23,8 +23,9 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
       </div>
       {rows.map((r) => {
         const share = r.shareOfReserve ?? 0
-        const isMorpho = r.protocol === "MORPHO"
-        const href = isMorpho
+        // Any row with a vaultAddress drills into the per-vault page. Reserve
+        // rows (Aave) route by chain+symbol instead.
+        const href = r.vaultAddress
           ? `/vault/${r.chain}/${r.vaultAddress}`
           : `/reserve/${r.chain}/${encodeURIComponent(r.reserveSymbol)}`
         return (
@@ -41,16 +42,18 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
               className={`text-[12px] uppercase tracking-[0.08em] ${
                 r.protocol === "MORPHO"
                   ? "text-[var(--color-success)]"
-                  : "text-[var(--color-text)]"
+                  : r.protocol === "KAMINO" || r.protocol === "JUPITER LEND"
+                    ? "text-[var(--color-recursion)]"
+                    : "text-[var(--color-text)]"
               }`}
             >
               {r.protocol}
             </div>
             <div className="min-w-0">
               <div className="truncate text-[13px] text-[var(--color-accent)]">
-                {isMorpho ? (r.vaultName ?? r.reserveSymbol) : r.reserveSymbol}
+                {r.vaultName ?? r.reserveSymbol}
               </div>
-              {isMorpho ? (
+              {r.vaultName ? (
                 <div className="truncate text-[10px] text-[var(--color-text-ghost)]">
                   {r.reserveSymbol} vault
                 </div>
