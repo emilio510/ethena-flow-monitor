@@ -1,5 +1,12 @@
 const DEFAULT_TIMEOUT_MS = 15_000
 
+/** Cloudflare-fronted APIs (Kamino, Fluid) can 403 requests with no UA on
+ *  serverless egress. Same UA approach as lib/ethena/client.ts. */
+const DEFAULT_HEADERS: HeadersInit = {
+  "User-Agent": "ethena-flow-monitor/1.0 (+https://ethena-flow-monitor.vercel.app)",
+  Accept: "application/json",
+}
+
 export class SolanaApiError extends Error {
   constructor(public source: "kamino" | "fluid", public status: number, public path: string, public body: string) {
     super(`${source} API error ${status}`)
@@ -25,7 +32,11 @@ export async function fluidFetch<T = unknown>(path: string, timeoutMs = DEFAULT_
 async function jsonFetch<T>(source: "kamino" | "fluid", url: string, path: string, timeoutMs: number): Promise<T> {
   let res: Response
   try {
-    res = await fetch(url, { cache: "no-store", signal: AbortSignal.timeout(timeoutMs) })
+    res = await fetch(url, {
+      cache: "no-store",
+      headers: DEFAULT_HEADERS,
+      signal: AbortSignal.timeout(timeoutMs),
+    })
   } catch (err) {
     if (err instanceof DOMException && err.name === "TimeoutError") {
       throw new SolanaTimeoutError(source, path, timeoutMs)
