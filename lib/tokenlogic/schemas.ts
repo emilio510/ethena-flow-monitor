@@ -1,6 +1,11 @@
 import { z } from "zod"
 
-const BqDate = z.object({ value: z.string() }).transform((d) => d.value)
+/** TokenLogic returns `latest_block_day` either as a flat date string
+ *  ("2026-05-20") or wrapped in BigQuery's `{ value: ... }` envelope.
+ *  Accept either shape and emit the flat string. */
+const BqDate = z
+  .union([z.string(), z.object({ value: z.string() })])
+  .transform((d) => (typeof d === "string" ? d : d.value))
 
 const ScalarOrArray = <T extends z.ZodTypeAny>(s: T) =>
   z.union([s, z.array(s)]).transform((v): z.infer<T>[] => (Array.isArray(v) ? v : [v]))
@@ -24,6 +29,16 @@ const NumberArrayOrCsv = z
     })
   })
 
+/** Symbol arrays are CSV-encoded in the new response too ("USDT0,USDtb").
+ *  Accept array, single string, or CSV; empty string means zero entries. */
+const StringArrayOrCsv = z
+  .union([z.string(), z.array(z.string())])
+  .transform((v): string[] => {
+    if (Array.isArray(v)) return v
+    if (v === "") return []
+    return v.split(",").map((s) => s.trim())
+  })
+
 export const Reserve = z.object({
   symbol: z.string(),
   amount: z.number(),
@@ -40,11 +55,11 @@ const RawRow = z.object({
   user_address: z.string(),
   wallet_label: z.string().nullable(),
   latest_block_day: BqDate,
-  supply_reserve_symbols: z.array(z.string()),
+  supply_reserve_symbols: StringArrayOrCsv,
   supply_reserve_amount: NumberArrayOrCsv,
   supply_reserve_amount_usd: NumberArrayOrCsv,
   total_supply_amount_usd: z.number().nonnegative(),
-  borrow_reserve_symbols: z.array(z.string()),
+  borrow_reserve_symbols: StringArrayOrCsv,
   borrow_reserve_amount: NumberArrayOrCsv,
   borrow_reserve_amount_usd: NumberArrayOrCsv,
   total_borrow_amount_usd: z.number().nonnegative(),
