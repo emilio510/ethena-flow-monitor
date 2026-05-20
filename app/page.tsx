@@ -19,10 +19,15 @@ export const maxDuration = 90
 
 async function safeFetchBacking(): Promise<BackingSnapshot | null> {
   // Best-effort: if Ethena's API is down or its schema drifts, fall back to
-  // the on-chain-only view rather than 500-ing the entire page.
+  // the on-chain-only view rather than 500-ing the entire page. Log the
+  // underlying failure so the cause is visible in Vercel runtime logs — a
+  // silent swallow makes "ethena api unavailable" indistinguishable from a
+  // CDN block, a timeout, or a schema drift.
   try {
     return await fetchBackingAssets()
-  } catch {
+  } catch (err) {
+    const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+    console.warn(`[ethena-flow-monitor] backing-assets fetch failed: ${reason}`)
     return null
   }
 }
