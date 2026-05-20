@@ -27,30 +27,40 @@ const HEADERS: HeadersInit = {
 }
 
 export async function GET() {
-  const res = await fetch(
-    "https://app.ethena.fi/api/positions/current/backing-assets",
-    { headers: HEADERS, cache: "no-store" },
-  )
-  if (!res.ok) {
+  // Up to 3 attempts: when Cloudflare serves the HTML challenge on a cold
+  // cache, the attempt itself warms the cache so the retry usually gets the
+  // real JSON. 250ms gap is enough for CF to register the prior request.
+  const body = await fetchWithChallengeRetry()
+  if (!body) {
     return NextResponse.json(
-      { error: `upstream ${res.status}` },
+      { error: "upstream challenged after retries" },
       { status: 502 },
     )
   }
-  const contentType = res.headers.get("content-type") ?? ""
-  if (!contentType.includes("json")) {
-    return NextResponse.json(
-      { error: `upstream returned ${contentType || "non-JSON"}` },
-      { status: 502 },
-    )
-  }
-  const body = await res.text()
   return new NextResponse(body, {
     status: 200,
     headers: {
       "content-type": "application/json",
-      // Brief edge cache so the page render isn't re-billing on every visitor.
-      "cache-control": "public, s-maxage=30, stale-while-revalidate=300",
+      // Long stale-while-revalidate so a single good fetch carries the
+      // dashboard through long stretches of CF challenges. Vercel will
+      // re-fetch in the background after s-maxage; if that fails, the
+      // page keeps seeing the last good payload.
+      "cache-control": "public, s-maxage=60, stale-while-revalidate=86400",
     },
   })
+}
+
+async function fetchWithChallengeRetry(): Promise<string | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 250))
+    const res = await fetch(
+      "https://app.ethena.fi/api/positions/current/backing-assets",
+      { headers: HEADERS, cache: "no-store" },
+    )
+    if (!res.ok) continue
+    const contentType = res.headers.get("content-type") ?? ""
+    if (!contentType.includes("json")) continue
+    return await res.text()
+  }
+  return null
 }

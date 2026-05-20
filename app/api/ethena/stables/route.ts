@@ -18,26 +18,30 @@ const HEADERS: HeadersInit = {
 }
 
 export async function GET() {
-  const res = await fetch("https://app.ethena.fi/api/stablecoin-collateral", {
-    headers: HEADERS,
-    cache: "no-store",
-  })
-  if (!res.ok) {
-    return NextResponse.json({ error: `upstream ${res.status}` }, { status: 502 })
+  const body = await fetchWithChallengeRetry()
+  if (!body) {
+    return NextResponse.json({ error: "upstream challenged after retries" }, { status: 502 })
   }
-  const contentType = res.headers.get("content-type") ?? ""
-  if (!contentType.includes("json")) {
-    return NextResponse.json(
-      { error: `upstream returned ${contentType || "non-JSON"}` },
-      { status: 502 },
-    )
-  }
-  const body = await res.text()
   return new NextResponse(body, {
     status: 200,
     headers: {
       "content-type": "application/json",
-      "cache-control": "public, s-maxage=60, stale-while-revalidate=600",
+      "cache-control": "public, s-maxage=60, stale-while-revalidate=86400",
     },
   })
+}
+
+async function fetchWithChallengeRetry(): Promise<string | null> {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    if (attempt > 0) await new Promise((r) => setTimeout(r, 250))
+    const res = await fetch("https://app.ethena.fi/api/stablecoin-collateral", {
+      headers: HEADERS,
+      cache: "no-store",
+    })
+    if (!res.ok) continue
+    const contentType = res.headers.get("content-type") ?? ""
+    if (!contentType.includes("json")) continue
+    return await res.text()
+  }
+  return null
 }
