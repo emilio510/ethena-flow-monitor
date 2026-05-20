@@ -8,11 +8,10 @@ import { fmtUsd, fmtPct } from "@/lib/format"
 import { custodialValue, fetchBackingAssets, totalBacking } from "@/lib/ethena"
 import type { BackingSnapshot } from "@/lib/ethena"
 
-// 1-hour ISR: Ethena's exposure shifts on the order of hours/days, so a
-// stale-by-up-to-1h cache hit beats forcing every visitor through the
-// 8-15s cold render. The unlucky 1-per-hour visitor still gets the slow
-// path in the background while we serve them the previous render.
-export const revalidate = 3600
+// 5-min ISR: keeps the cache warm during traffic but lets a failed render
+// (e.g. a transient CF challenge that drops Ethena's API path) heal
+// quickly. Previously 3600s meant a single bad render lingered for an hour.
+export const revalidate = 300
 // View A walks every borrower across every market Ethena touches; this
 // can run 30-60s on cold load against the busy ethereum + base markets.
 export const maxDuration = 90
