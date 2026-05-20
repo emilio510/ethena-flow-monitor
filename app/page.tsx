@@ -20,16 +20,28 @@ export const maxDuration = 90
 async function safeFetchBacking(): Promise<BackingSnapshot | null> {
   // Best-effort: if Ethena's API is down or its schema drifts, fall back to
   // the on-chain-only view rather than 500-ing the entire page. Log the
-  // underlying failure so the cause is visible in Vercel runtime logs — a
-  // silent swallow makes "ethena api unavailable" indistinguishable from a
-  // CDN block, a timeout, or a schema drift.
+  // underlying failure (including undici's `cause` chain — that's where the
+  // real DNS / TLS / ECONNRESET signal lives behind the generic
+  // "fetch failed" wrapper) so Vercel runtime logs are useful.
   try {
     return await fetchBackingAssets()
   } catch (err) {
-    const reason = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
-    console.warn(`[ethena-flow-monitor] backing-assets fetch failed: ${reason}`)
+    const head = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+    const cause =
+      err instanceof Error && "cause" in err && err.cause
+        ? ` | cause: ${describeCause(err.cause)}`
+        : ""
+    console.warn(`[ethena-flow-monitor] backing-assets fetch failed: ${head}${cause}`)
     return null
   }
+}
+
+function describeCause(cause: unknown): string {
+  if (cause instanceof Error) {
+    const code = (cause as Error & { code?: string }).code
+    return `${cause.name}${code ? `(${code})` : ""}: ${cause.message}`
+  }
+  return String(cause)
 }
 
 export default async function Page() {
