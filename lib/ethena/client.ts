@@ -2,19 +2,26 @@ const BASE_URL = "https://app.ethena.fi/api"
 const DEFAULT_TIMEOUT_MS = 15_000
 
 /**
- * Ethena's CDN (Cloudflare) 403s requests from Vercel's serverless egress
- * when no User-Agent header is sent — server-side `fetch` in Node 20+ omits
- * it by default. We send a generic monitoring UA so requests succeed on
- * Vercel while still being honest about what we are.
+ * Ethena's CDN (Cloudflare) returns an HTML anti-bot challenge instead of
+ * the JSON payload when a request looks too synthetic. From Vercel's egress
+ * a bare `fetch` lands on the challenge page; the response is 200 OK with
+ * a `<!DOCTYPE>` body that fails our JSON parse downstream.
  *
- * Background: a prior version of this codebase hit the same CDN block and
- * solved it the same way (commit e4983a233). The fix got reverted alongside
- * the CEX feature rollback; reapplying here so the public-API source-of-truth
- * path doesn't silently fall back to on-chain only in production.
+ * Mimicking a real browser tap (UA + Referer + Origin + Sec-Fetch-* +
+ * Accept-Language) unlocks the JSON path. The Referer/Origin pair is the
+ * load-bearing pair — CF whitelists requests that look like they originated
+ * from the dashboard itself.
  */
 const DEFAULT_HEADERS: HeadersInit = {
-  "User-Agent": "ethena-flow-monitor/1.0 (+https://ethena-flow-monitor.vercel.app)",
-  Accept: "application/json",
+  "User-Agent":
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36",
+  Accept: "application/json, text/plain, */*",
+  "Accept-Language": "en-US,en;q=0.9",
+  Referer: "https://app.ethena.fi/dashboards/backing-assets",
+  Origin: "https://app.ethena.fi",
+  "Sec-Fetch-Site": "same-origin",
+  "Sec-Fetch-Mode": "cors",
+  "Sec-Fetch-Dest": "empty",
 }
 
 /**
@@ -65,5 +72,20 @@ export async function ethenaFetch<T = unknown>(
     const body = await res.text()
     throw new EthenaApiError(res.status, path, body)
   }
+  // Cloudflare anti-bot can return 200 OK with an HTML challenge page. The
+  // downstream JSON parse fails with a cryptic SyntaxError — surface it as a
+  // typed error so the caller (and Vercel logs) know the real cause.
+  const contentType = res.headers.get("content-type") ?? ""
+  if (!contentType.includes("json")) {
+    const body = await res.text()
+    throw new EthenaCdnChallengeError(contentType, body.slice(0, 200))
+  }
   return (await res.json()) as T
+}
+
+export class EthenaCdnChallengeError extends Error {
+  constructor(public contentType: string, public bodyPreview: string) {
+    super(`Ethena CDN returned ${contentType || "non-JSON"} (likely anti-bot challenge)`)
+    this.name = "EthenaCdnChallengeError"
+  }
 }

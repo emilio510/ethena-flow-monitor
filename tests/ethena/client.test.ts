@@ -10,6 +10,7 @@ describe("ethenaFetch", () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
       json: async () => ({ strategies: [], timestamp: 1 }),
     })
     vi.stubGlobal("fetch", mockFetch)
@@ -26,6 +27,7 @@ describe("ethenaFetch", () => {
     const mockFetch = vi.fn().mockResolvedValue({
       ok: true,
       status: 200,
+      headers: new Headers({ "content-type": "application/json" }),
       json: async () => ({}),
     })
     vi.stubGlobal("fetch", mockFetch)
