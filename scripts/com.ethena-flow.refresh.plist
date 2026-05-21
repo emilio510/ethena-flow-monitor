@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  launchd agent: runs the Ethena snapshot refresh daily at 09:00 local time.
+
+  Reference copy — the live agent lives at
+  ~/Library/LaunchAgents/com.ethena-flow.refresh.plist. Keep them in sync.
+  If the Mac is asleep at 09:00, launchd runs the job at the next wake.
+
+  Install: see scripts/refresh-and-push.sh header.
+-->
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.ethena-flow.refresh</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/akgemilio/Projects/ethena-flow-monitor/scripts/refresh-and-push.sh</string>
+  </array>
+
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>9</integer>
+    <key>Minute</key>
+    <integer>0</integer>
+  </dict>
+
+  <key>StandardOutPath</key>
+  <string>/Users/akgemilio/Library/Logs/ethena-flow-refresh.log</string>
+  <key>StandardErrorPath</key>
+  <string>/Users/akgemilio/Library/Logs/ethena-flow-refresh.log</string>
+</dict>
+</plist>
