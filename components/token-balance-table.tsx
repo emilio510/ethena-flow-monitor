@@ -3,30 +3,47 @@ import type { IdleBalanceRow } from "@/lib/onchain/balances"
 
 const COLS = "grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,1.2fr)]"
 
-export function IdleBackingTable({
+/**
+ * Generic per-token balance table — used for both the idle-backing breakdown
+ * and the reserve-fund breakdown. Title and the share-column label are
+ * parameterised so the same component reads accurately in both contexts.
+ */
+export function TokenBalanceTable({
   rows,
   total,
+  title,
+  shareLabel,
+  note,
+  emptyText = "No balances detected.",
 }: {
   rows: IdleBalanceRow[]
   total: number
+  title: string
+  shareLabel: string
+  /** Optional caption shown under the title (e.g. why this isn't backing). */
+  note?: string
+  emptyText?: string
 }) {
   return (
     <div>
       <div className="mb-3 flex items-baseline justify-between">
         <h2 className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-dim)]">
-          Idle backing — not deployed in lending
+          {title}
         </h2>
         <span className="text-[12px] text-[var(--color-text-ghost)]">
           {fmtUsd(total)} total
         </span>
       </div>
+      {note ? (
+        <p className="mb-3 text-[11px] text-[var(--color-text-ghost)]">{note}</p>
+      ) : null}
       <div className="border border-[var(--color-border)]">
         <div
           className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]`}
         >
           <div>Token</div>
           <div className="text-right">USD Value</div>
-          <div className="text-right">Share of Idle</div>
+          <div className="text-right">{shareLabel}</div>
         </div>
         {rows.map((r) => {
           const share = total > 0 ? r.totalUsd / total : 0
@@ -36,9 +53,7 @@ export function IdleBackingTable({
               className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5`}
             >
               <div className="flex items-center gap-2">
-                <span className="text-[13px] text-[var(--color-accent)]">
-                  {r.symbol}
-                </span>
+                <span className="text-[13px] text-[var(--color-accent)]">{r.symbol}</span>
                 {r.isErc4626 ? (
                   <span className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-ghost)]">
                     vault
@@ -63,7 +78,7 @@ export function IdleBackingTable({
         })}
         {rows.length === 0 ? (
           <div className="px-4 py-3 text-[12px] text-[var(--color-text-ghost)]">
-            No idle balances detected.
+            {emptyText}
           </div>
         ) : null}
       </div>

@@ -3,7 +3,7 @@ import { Header } from "@/components/header"
 import { KpiCard } from "@/components/kpi-card"
 import { KpiStrip } from "@/components/kpi-strip"
 import { FootprintTable } from "@/components/footprint-table"
-import { IdleBackingTable } from "@/components/idle-backing-table"
+import { TokenBalanceTable } from "@/components/token-balance-table"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import { custodialValue, fetchBackingAssets, totalBacking } from "@/lib/ethena"
 import type { BackingSnapshot } from "@/lib/ethena"
@@ -163,8 +163,24 @@ export default async function Page() {
           <FootprintTable rows={rows} />
         </div>
         <div className="mt-8">
-          <IdleBackingTable rows={idle.rows} total={idle.totalUsd} />
+          <TokenBalanceTable
+            rows={idle.rows}
+            total={idle.totalUsd}
+            title="Idle backing — not deployed in lending"
+            shareLabel="Share of Idle"
+          />
         </div>
+        {idle.reserveFundRows.length > 0 ? (
+          <div className="mt-8">
+            <TokenBalanceTable
+              rows={idle.reserveFundRows}
+              total={idle.reserveFundTotalUsd}
+              title="Reserve fund — insurance, excluded from backing"
+              shareLabel="Share of Fund"
+              note="Held in a dedicated wallet as a solvency backstop. Ethena's reported backing total excludes it, so the figures above do too — it is shown here for completeness only."
+            />
+          </div>
+        ) : null}
       </section>
     </main>
   )

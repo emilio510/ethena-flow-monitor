@@ -1,7 +1,7 @@
 import "server-only"
 import { erc20Abi, parseAbi, type Address } from "viem"
 import { getPublicClient } from "./clients"
-import { ETHENA_WALLETS } from "@/config/wallets"
+import { MONITORED_WALLETS, isReserveFundWallet } from "@/config/wallets"
 import { IDLE_TOKENS, type IdleToken } from "@/config/idle-tokens"
 import type { Chain } from "@/config/markets"
 
@@ -20,8 +20,12 @@ export interface IdleBalanceRow {
 }
 
 export interface IdleBalanceResult {
+  /** Idle balances of the backing wallets — counts toward total backing. */
   rows: IdleBalanceRow[]
   totalUsd: number
+  /** Reserve-fund wallet balances — insurance, NOT backing. Shown separately. */
+  reserveFundRows: IdleBalanceRow[]
+  reserveFundTotalUsd: number
   failures: Array<{ chain: Chain; tokenSymbol: string; reason: string }>
   /** Chains we know are under-covered (config has no tokens listed). The UI
    *  can surface this so the headline isn't taken literally on chains we
@@ -29,9 +33,15 @@ export interface IdleBalanceResult {
   uncoveredChains: Chain[]
 }
 
-/** Fetch idle (non-deployed) backing balances for the 11 Ethena wallets
- *  across every chain that has a curated token list, returning per-symbol
- *  totals.
+interface ChainRows {
+  /** Per-token USD for the backing wallets. */
+  backing: IdleBalanceRow[]
+  /** Per-token USD for the reserve-fund wallet. */
+  reserveFund: IdleBalanceRow[]
+}
+
+/** Fetch idle (non-deployed) balances for every monitored wallet across each
+ *  chain that has a curated token list, bucketing the reserve fund apart.
  *
  *  Math: for each (chain, token, wallet) we read `balanceOf` via Multicall3.
  *  For ERC4626 vault tokens we additionally read `convertToAssets(rawSum)`
@@ -40,22 +50,22 @@ export interface IdleBalanceResult {
 export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
   const failures: IdleBalanceResult["failures"] = []
   const uncoveredChains: Chain[] = []
-  const symbolTotals = new Map<string, { usd: number; isErc4626: boolean }>()
 
   const chainEntries = Object.entries(IDLE_TOKENS) as [Chain, IdleToken[]][]
 
   const chainResults = await Promise.allSettled(
-    chainEntries.map(async ([chain, tokens]) => {
+    chainEntries.map(async ([chain, tokens]): Promise<ChainRows> => {
       if (tokens.length === 0) {
         uncoveredChains.push(chain)
-        return []
+        return { backing: [], reserveFund: [] }
       }
       const client = getPublicClient(chain)
 
-      // Build the multicall: one balanceOf per (token, wallet) pair.
+      // One balanceOf per (token, wallet) pair across every monitored wallet.
       const calls = tokens.flatMap((token) =>
-        ETHENA_WALLETS.map((wallet) => ({
+        MONITORED_WALLETS.map((wallet) => ({
           token,
+          wallet,
           request: {
             address: token.address,
             abi: erc20Abi,
@@ -70,10 +80,11 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
         allowFailure: true,
       })
 
-      // Sum raw balances per token.
-      const rawByToken = new Map<string, bigint>()
+      // Sum raw balances per token, split into backing vs reserve fund.
+      const rawBacking = new Map<string, bigint>()
+      const rawReserve = new Map<string, bigint>()
       balanceResults.forEach((r, i) => {
-        const { token } = calls[i]!
+        const { token, wallet } = calls[i]!
         if (r.status === "failure") {
           failures.push({
             chain,
@@ -82,83 +93,106 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
           })
           return
         }
-        const cur = rawByToken.get(token.address.toLowerCase()) ?? BigInt(0)
-        rawByToken.set(token.address.toLowerCase(), cur + (r.result as bigint))
+        const map = isReserveFundWallet(wallet) ? rawReserve : rawBacking
+        const key = token.address.toLowerCase()
+        map.set(key, (map.get(key) ?? BigInt(0)) + (r.result as bigint))
       })
 
-      // Convert ERC4626 share totals to underlying-asset units.
-      const erc4626Tokens = tokens.filter((t) => t.isErc4626)
-      const erc4626Calls = erc4626Tokens
-        .map((t) => ({ token: t, raw: rawByToken.get(t.address.toLowerCase()) ?? BigInt(0) }))
-        .filter((x) => x.raw > BigInt(0))
+      // Convert a raw-balance map into per-token USD rows, unwrapping ERC4626
+      // vault shares into underlying-asset units.
+      const toRows = async (raw: Map<string, bigint>): Promise<IdleBalanceRow[]> => {
+        const erc4626Calls = tokens
+          .filter((t) => t.isErc4626)
+          .map((t) => ({ token: t, raw: raw.get(t.address.toLowerCase()) ?? BigInt(0) }))
+          .filter((x) => x.raw > BigInt(0))
 
-      const erc4626Results =
-        erc4626Calls.length > 0
-          ? await client.multicall({
-              contracts: erc4626Calls.map((x) => ({
-                address: x.token.address,
-                abi: erc4626Abi,
-                functionName: "convertToAssets" as const,
-                args: [x.raw],
-              })),
-              allowFailure: true,
+        const erc4626Results =
+          erc4626Calls.length > 0
+            ? await client.multicall({
+                contracts: erc4626Calls.map((x) => ({
+                  address: x.token.address,
+                  abi: erc4626Abi,
+                  functionName: "convertToAssets" as const,
+                  args: [x.raw],
+                })),
+                allowFailure: true,
+              })
+            : []
+
+        const assetByAddress = new Map<string, bigint>()
+        erc4626Results.forEach((r, i) => {
+          const { token, raw: rawShares } = erc4626Calls[i]!
+          if (r.status === "failure") {
+            failures.push({
+              chain,
+              tokenSymbol: token.symbol,
+              reason: `convertToAssets failed: ${r.error?.message ?? "unknown"}`,
             })
-          : []
+            assetByAddress.set(token.address.toLowerCase(), rawShares) // 1:1 fallback
+            return
+          }
+          assetByAddress.set(token.address.toLowerCase(), r.result as bigint)
+        })
 
-      const erc4626AssetByAddress = new Map<string, bigint>()
-      erc4626Results.forEach((r, i) => {
-        const { token, raw } = erc4626Calls[i]!
-        if (r.status === "failure") {
-          failures.push({
-            chain,
-            tokenSymbol: token.symbol,
-            reason: `convertToAssets failed: ${r.error?.message ?? "unknown"}`,
-          })
-          // Fall back to 1:1 (under-counts the ~5% yield).
-          erc4626AssetByAddress.set(token.address.toLowerCase(), raw)
-          return
-        }
-        erc4626AssetByAddress.set(token.address.toLowerCase(), r.result as bigint)
-      })
+        return tokens.map((token) => {
+          const rawAmt = raw.get(token.address.toLowerCase()) ?? BigInt(0)
+          const valuedRaw = token.isErc4626
+            ? assetByAddress.get(token.address.toLowerCase()) ?? rawAmt
+            : rawAmt
+          return {
+            symbol: token.symbol,
+            totalUsd: Number(valuedRaw) / 10 ** token.decimals,
+            isErc4626: !!token.isErc4626,
+          }
+        })
+      }
 
-      // Per-token USD rows for this chain.
-      return tokens.map((token) => {
-        const raw = rawByToken.get(token.address.toLowerCase()) ?? BigInt(0)
-        const valuedRaw = token.isErc4626
-          ? erc4626AssetByAddress.get(token.address.toLowerCase()) ?? raw
-          : raw
-        // valuedRaw is in underlying-asset units. Stables peg ≈ $1.
-        const usd = Number(valuedRaw) / 10 ** token.decimals
-        return { symbol: token.symbol, usd, isErc4626: !!token.isErc4626 }
-      })
+      return { backing: await toRows(rawBacking), reserveFund: await toRows(rawReserve) }
     }),
   )
 
-  chainResults.forEach((r, i) => {
-    const [chain] = chainEntries[i]!
-    if (r.status === "rejected") {
-      failures.push({
-        chain,
-        tokenSymbol: "*",
-        reason: r.reason instanceof Error ? r.reason.message : String(r.reason),
-      })
-      return
-    }
-    for (const row of r.value) {
-      if (row.usd <= 0) continue
-      const existing = symbolTotals.get(row.symbol)
-      symbolTotals.set(row.symbol, {
-        usd: (existing?.usd ?? 0) + row.usd,
-        isErc4626: existing?.isErc4626 || row.isErc4626,
-      })
-    }
-  })
+  // Aggregate per-symbol across chains, separately for each bucket.
+  // `recordFailures` ensures a rejected chain is logged once, not per bucket.
+  const aggregate = (
+    pick: (c: ChainRows) => IdleBalanceRow[],
+    recordFailures: boolean,
+  ): IdleBalanceRow[] => {
+    const totals = new Map<string, { usd: number; isErc4626: boolean }>()
+    chainResults.forEach((r, i) => {
+      const [chain] = chainEntries[i]!
+      if (r.status === "rejected") {
+        if (recordFailures) {
+          failures.push({
+            chain,
+            tokenSymbol: "*",
+            reason: r.reason instanceof Error ? r.reason.message : String(r.reason),
+          })
+        }
+        return
+      }
+      for (const row of pick(r.value)) {
+        if (row.totalUsd <= 0) continue
+        const prev = totals.get(row.symbol)
+        totals.set(row.symbol, {
+          usd: (prev?.usd ?? 0) + row.totalUsd,
+          isErc4626: (prev?.isErc4626 ?? false) || row.isErc4626,
+        })
+      }
+    })
+    return [...totals.entries()]
+      .map(([symbol, { usd, isErc4626 }]) => ({ symbol, totalUsd: usd, isErc4626 }))
+      .sort((a, b) => b.totalUsd - a.totalUsd)
+  }
 
-  const rows: IdleBalanceRow[] = [...symbolTotals.entries()]
-    .map(([symbol, { usd, isErc4626 }]) => ({ symbol, totalUsd: usd, isErc4626 }))
-    .sort((a, b) => b.totalUsd - a.totalUsd)
+  const rows = aggregate((c) => c.backing, true)
+  const reserveFundRows = aggregate((c) => c.reserveFund, false)
 
-  const totalUsd = rows.reduce((a, r) => a + r.totalUsd, 0)
-
-  return { rows, totalUsd, failures, uncoveredChains }
+  return {
+    rows,
+    totalUsd: rows.reduce((a, r) => a + r.totalUsd, 0),
+    reserveFundRows,
+    reserveFundTotalUsd: reserveFundRows.reduce((a, r) => a + r.totalUsd, 0),
+    failures,
+    uncoveredChains,
+  }
 }

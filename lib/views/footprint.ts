@@ -140,6 +140,8 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
   const idle = safeUnwrap(3, "getEthenaIdleBalances", {
     rows: [],
     totalUsd: 0,
+    reserveFundRows: [],
+    reserveFundTotalUsd: 0,
     failures: [],
     uncoveredChains: [],
   } as IdleBalanceResult)
