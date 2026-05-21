@@ -206,11 +206,15 @@ function SolanaVaultPage({ view }: { view: SolanaVaultView }) {
         <div className="mt-8">
           <SolanaCompositionPanel
             rows={view.composition}
-            title={view.protocol === "KAMINO" ? "Underlying market reserves" : "Borrowing vaults paired with this supply pool"}
+            title={
+              view.protocol === "KAMINO"
+                ? "Underlying market — isolated USDe / USDG"
+                : "Recursive leg — USDe collateral against USDG debt"
+            }
             subtitle={
               view.protocol === "KAMINO"
-                ? "Kamino's Ethena Market — collateral side carries USDe (and a token sUSDe allowance); USDG is the debt the kvault funds. The ‘Recursive leg' row is the USDG that gets borrowed against USDe."
-                : "Each Fluid pair routes its collateral into USDG / USDe debt against the jleUSDG supply pool. The USDe → USDG row is the only flow that actively drains this vault's USDG."
+                ? "Kamino's Ethena Market is an isolated pair: USDe is the only collateral, USDG the only debt the kvault funds. Dust reserves (sub-$1M) are hidden."
+                : "The jleUSDG supply pool is drained by exactly one borrow vault — USDe collateral, USDG debt. Current LTV, health factor and leverage are aggregate, market-wide figures across all open positions."
             }
           />
         </div>
