@@ -76,14 +76,19 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
                 {r.shareOfReserve !== undefined ? fmtPct(r.shareOfReserve) : "—"}
               </div>
             </div>
-            <div className="text-right text-[13px] text-[var(--color-recursion)]">
+            <div className="text-right">
               {r.recursionScore !== undefined ? (
                 <>
-                  {fmtPct(r.recursionScore)}
-                  {r.recursionApprox ? "*" : ""}
+                  <div className="text-[13px] text-[var(--color-recursion)]">
+                    {fmtPct(r.recursionScore)}
+                    {r.recursionApprox ? "*" : ""}
+                  </div>
+                  <div className="text-[10px] text-[var(--color-text-ghost)]">
+                    {fmtUsd(r.ethenaSuppliedUsd * r.recursionScore)}
+                  </div>
                 </>
               ) : (
-                "—"
+                <span className="text-[13px] text-[var(--color-recursion)]">—</span>
               )}
             </div>
             <div className="flex justify-end">
