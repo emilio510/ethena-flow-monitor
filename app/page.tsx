@@ -4,6 +4,8 @@ import { KpiCard } from "@/components/kpi-card"
 import { KpiStrip } from "@/components/kpi-strip"
 import { FootprintTable } from "@/components/footprint-table"
 import { TokenBalanceTable } from "@/components/token-balance-table"
+import { ReconciliationPanel } from "@/components/reconciliation-panel"
+import { buildReconciliation } from "@/lib/views/reconciliation"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import { custodialValue, fetchBackingAssets, totalBacking } from "@/lib/ethena"
 import type { BackingSnapshot } from "@/lib/ethena"
@@ -74,6 +76,10 @@ export default async function Page() {
       ? (onchainBacking - ethenaVerifiable) / ethenaVerifiable
       : null
   const verifierOk = verifierDeltaPct !== null && Math.abs(verifierDeltaPct) < 0.02
+  // Per-asset reconciliation — only when Ethena's snapshot is available.
+  const reconciliation = ethenaSnapshot
+    ? buildReconciliation(ethenaSnapshot, rows, idle.rows)
+    : null
 
   return (
     <main>
@@ -179,6 +185,11 @@ export default async function Page() {
               shareLabel="Share of Fund"
               note="Held in a dedicated wallet as a solvency backstop. Ethena's reported backing total excludes it, so the figures above do too — it is shown here for completeness only."
             />
+          </div>
+        ) : null}
+        {reconciliation ? (
+          <div className="mt-8">
+            <ReconciliationPanel data={reconciliation} />
           </div>
         ) : null}
       </section>
