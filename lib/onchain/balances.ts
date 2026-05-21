@@ -3,6 +3,8 @@ import { erc20Abi, parseAbi, type Address } from "viem"
 import { getPublicClient } from "./clients"
 import { MONITORED_WALLETS, isReserveFundWallet } from "@/config/wallets"
 import { IDLE_TOKENS, type IdleToken } from "@/config/idle-tokens"
+import { RESERVE_FUND_MIN_USD } from "@/config/reserve-fund"
+import { getReserveFundLpRows } from "./reserve-fund"
 import type { Chain } from "@/config/markets"
 
 const erc4626Abi = parseAbi([
@@ -26,6 +28,10 @@ export interface IdleBalanceResult {
   /** Reserve-fund wallet balances — insurance, NOT backing. Shown separately. */
   reserveFundRows: IdleBalanceRow[]
   reserveFundTotalUsd: number
+  /** Per-wallet idle USD across all monitored wallets (stablecoins valued
+   *  1:1; the reserve fund's Curve LP is added in by loadFootprint). Drives
+   *  the monitored-wallets inventory table. */
+  walletIdleUsd: Array<{ address: string; idleUsd: number }>
   failures: Array<{ chain: Chain; tokenSymbol: string; reason: string }>
   /** Chains we know are under-covered (config has no tokens listed). The UI
    *  can surface this so the headline isn't taken literally on chains we
@@ -38,6 +44,8 @@ interface ChainRows {
   backing: IdleBalanceRow[]
   /** Per-token USD for the reserve-fund wallet. */
   reserveFund: IdleBalanceRow[]
+  /** Per-wallet USD on this chain (lowercased address → USD), stables 1:1. */
+  walletUsd: Map<string, number>
 }
 
 /** Fetch idle (non-deployed) balances for every monitored wallet across each
@@ -53,11 +61,22 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
 
   const chainEntries = Object.entries(IDLE_TOKENS) as [Chain, IdleToken[]][]
 
+  // The reserve fund's Curve LP positions are read in parallel with the
+  // per-chain stablecoin scan. A failure here shouldn't blank the rest.
+  const lpRowsPromise = getReserveFundLpRows().catch((err) => {
+    failures.push({
+      chain: "ethereum",
+      tokenSymbol: "reserve-fund-lp",
+      reason: err instanceof Error ? err.message : String(err),
+    })
+    return [] as IdleBalanceRow[]
+  })
+
   const chainResults = await Promise.allSettled(
     chainEntries.map(async ([chain, tokens]): Promise<ChainRows> => {
       if (tokens.length === 0) {
         uncoveredChains.push(chain)
-        return { backing: [], reserveFund: [] }
+        return { backing: [], reserveFund: [], walletUsd: new Map() }
       }
       const client = getPublicClient(chain)
 
@@ -81,8 +100,11 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
       })
 
       // Sum raw balances per token, split into backing vs reserve fund.
+      // Also accumulate a plain per-wallet USD total (stables 1:1) for the
+      // monitored-wallets inventory.
       const rawBacking = new Map<string, bigint>()
       const rawReserve = new Map<string, bigint>()
+      const walletUsd = new Map<string, number>()
       balanceResults.forEach((r, i) => {
         const { token, wallet } = calls[i]!
         if (r.status === "failure") {
@@ -96,6 +118,10 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
         const map = isReserveFundWallet(wallet) ? rawReserve : rawBacking
         const key = token.address.toLowerCase()
         map.set(key, (map.get(key) ?? BigInt(0)) + (r.result as bigint))
+
+        const w = wallet.toLowerCase()
+        const usd = Number(r.result as bigint) / 10 ** token.decimals
+        walletUsd.set(w, (walletUsd.get(w) ?? 0) + usd)
       })
 
       // Convert a raw-balance map into per-token USD rows, unwrapping ERC4626
@@ -147,7 +173,11 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
         })
       }
 
-      return { backing: await toRows(rawBacking), reserveFund: await toRows(rawReserve) }
+      return {
+        backing: await toRows(rawBacking),
+        reserveFund: await toRows(rawReserve),
+        walletUsd,
+      }
     }),
   )
 
@@ -185,13 +215,35 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
   }
 
   const rows = aggregate((c) => c.backing, true)
-  const reserveFundRows = aggregate((c) => c.reserveFund, false)
+
+  // Reserve fund = idle stablecoins + Curve LP positions, dust filtered so
+  // the table shows only the fund's real holdings (tens of millions), not
+  // airdrop/dust transfers that happen to land in the wallet.
+  const reserveStables = aggregate((c) => c.reserveFund, false)
+  const lpRows = await lpRowsPromise
+  const reserveFundRows = [...reserveStables, ...lpRows]
+    .filter((r) => r.totalUsd >= RESERVE_FUND_MIN_USD)
+    .sort((a, b) => b.totalUsd - a.totalUsd)
+
+  // Per-wallet idle USD, summed across chains.
+  const walletIdle = new Map<string, number>()
+  for (const r of chainResults) {
+    if (r.status !== "fulfilled") continue
+    for (const [wallet, usd] of r.value.walletUsd) {
+      walletIdle.set(wallet, (walletIdle.get(wallet) ?? 0) + usd)
+    }
+  }
+  const walletIdleUsd = [...walletIdle.entries()].map(([address, idleUsd]) => ({
+    address,
+    idleUsd,
+  }))
 
   return {
     rows,
     totalUsd: rows.reduce((a, r) => a + r.totalUsd, 0),
     reserveFundRows,
     reserveFundTotalUsd: reserveFundRows.reduce((a, r) => a + r.totalUsd, 0),
+    walletIdleUsd,
     failures,
     uncoveredChains,
   }

@@ -12,7 +12,11 @@ import {
   type EthenaMorphoResult,
 } from "@/lib/morpho/positions"
 import { getEthenaIdleBalances, type IdleBalanceResult } from "@/lib/onchain/balances"
-import { isEthenaWallet } from "@/config/wallets"
+import {
+  ETHENA_WALLETS,
+  RESERVE_FUND_WALLET,
+  isEthenaWallet,
+} from "@/config/wallets"
 import { computeReserveRecursion } from "@/lib/recursion/score"
 import { classify, isEthenaStack } from "@/lib/recursion/classify"
 import { getEthenaSolanaPositions } from "@/lib/solana"
@@ -44,6 +48,15 @@ export interface FootprintRow {
   isAnomalyBorrow: boolean
 }
 
+/** One monitored wallet and what it holds — the dashboard's "source of
+ *  truth" inventory. `totalUsd` = idle wallet balances + deployed lending
+ *  positions (the reserve fund's row folds in its Curve LP). */
+export interface WalletInventoryRow {
+  address: string
+  role: "backing" | "reserve-fund"
+  totalUsd: number
+}
+
 export interface FootprintResult {
   rows: FootprintRow[]
   freshness: string | undefined
@@ -53,6 +66,8 @@ export interface FootprintResult {
   /** Solana protocols that returned an error (e.g. ["kamino"]). Empty
    *  array when no snapshot was passed or both succeeded. */
   failedSolana: string[]
+  /** Per-wallet inventory — every monitored address + its $ holdings. */
+  walletInventory: WalletInventoryRow[]
   weightedRecursion: number
   weightedRecursionApprox: boolean
   /** Total $ Ethena has supplied across Aave + Morpho (sum of all deployed
@@ -142,6 +157,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     totalUsd: 0,
     reserveFundRows: [],
     reserveFundTotalUsd: 0,
+    walletIdleUsd: [],
     failures: [],
     uncoveredChains: [],
   } as IdleBalanceResult)
@@ -356,6 +372,39 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
   const trueRecursionShare =
     totalBacking > 0 ? clamp(recursiveUsd / totalBacking) : 0
 
+  // ───────────────────── Monitored-wallet inventory
+
+  // Deployed $ per wallet: Aave supply (TokenLogic) + Morpho supply.
+  const deployedByWallet = new Map<string, number>()
+  for (const p of aavePositions) {
+    if (!isEthenaWallet(p.userAddress)) continue
+    const w = p.userAddress.toLowerCase()
+    deployedByWallet.set(w, (deployedByWallet.get(w) ?? 0) + p.totalSupplyUsd)
+  }
+  for (const p of morphoPositions) {
+    const w = p.walletAddress.toLowerCase()
+    deployedByWallet.set(w, (deployedByWallet.get(w) ?? 0) + p.ethenaSuppliedUsd)
+  }
+  const idleByWallet = new Map(
+    idle.walletIdleUsd.map((w) => [w.address.toLowerCase(), w.idleUsd]),
+  )
+  const walletInventory: WalletInventoryRow[] = [
+    ...ETHENA_WALLETS.map((address): WalletInventoryRow => {
+      const w = address.toLowerCase()
+      return {
+        address,
+        role: "backing",
+        totalUsd: (idleByWallet.get(w) ?? 0) + (deployedByWallet.get(w) ?? 0),
+      }
+    }),
+    {
+      // Reserve fund: its dust-filtered stablecoins + Curve LP.
+      address: RESERVE_FUND_WALLET,
+      role: "reserve-fund" as const,
+      totalUsd: idle.reserveFundTotalUsd,
+    },
+  ].sort((a, b) => b.totalUsd - a.totalUsd)
+
   return {
     rows,
     freshness,
@@ -363,6 +412,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     failedMarkets,
     failedMorpho,
     failedSolana,
+    walletInventory,
     weightedRecursion,
     weightedRecursionApprox: weightedAnyApprox,
     deployedUsd,

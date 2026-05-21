@@ -5,6 +5,7 @@ import { KpiStrip } from "@/components/kpi-strip"
 import { FootprintTable } from "@/components/footprint-table"
 import { TokenBalanceTable } from "@/components/token-balance-table"
 import { ReconciliationPanel } from "@/components/reconciliation-panel"
+import { MonitoredWalletsTable } from "@/components/monitored-wallets-table"
 import { buildReconciliation } from "@/lib/views/reconciliation"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import { custodialValue, fetchBackingAssets, totalBacking } from "@/lib/ethena"
@@ -54,6 +55,7 @@ export default async function Page() {
   const {
     rows,
     failedWallets,
+    walletInventory,
     weightedRecursion,
     weightedRecursionApprox,
     deployedUsd,
@@ -192,6 +194,9 @@ export default async function Page() {
             <ReconciliationPanel data={reconciliation} />
           </div>
         ) : null}
+        <div className="mt-8">
+          <MonitoredWalletsTable rows={walletInventory} />
+        </div>
       </section>
     </main>
   )
