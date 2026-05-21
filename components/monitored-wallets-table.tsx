@@ -62,14 +62,21 @@ export function MonitoredWalletsTable({ rows }: { rows: WalletInventoryRow[] }) 
           >
             <div className="flex min-w-0 items-center gap-2">
               <ChainIcon chain={r.chain} size={14} />
-              <a
-                href={explorerUrl(r)}
-                target="_blank"
-                rel="noreferrer"
-                className="truncate font-[family-name:var(--font-mono)] text-[12px] text-[var(--color-accent)] hover:underline"
-              >
-                {r.address}
-              </a>
+              <div className="min-w-0">
+                <a
+                  href={explorerUrl(r)}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="block truncate font-[family-name:var(--font-mono)] text-[12px] text-[var(--color-accent)] hover:underline"
+                >
+                  {r.address}
+                </a>
+                {r.label ? (
+                  <div className="truncate text-[10px] text-[var(--color-text-ghost)]">
+                    {r.label}
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div
               className={`text-[11px] uppercase tracking-[0.06em] ${

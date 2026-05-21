@@ -26,6 +26,17 @@ export const RESERVE_FUND_WALLET = "0x2b5ab59163a6e93b4486f6055d33ca4a115dd4d5"
  *  The idle reader scans this set, then buckets the reserve fund apart. */
 export const MONITORED_WALLETS = [...ETHENA_WALLETS, RESERVE_FUND_WALLET] as const
 
+/**
+ * Human labels for addresses with a known on-chain identity, sourced from
+ * Ethena's monthly custodian-attestation reports. Keyed by lowercased
+ * address. Extend as future attestations disclose more — the April 2026
+ * report named the MintRedeem contract; later reports are expected to
+ * disclose additional addresses.
+ */
+export const KNOWN_WALLET_LABELS: Record<string, string> = {
+  "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3": "USDe MintRedeem contract",
+}
+
 const ETHENA_SET = new Set(ETHENA_WALLETS.map((a) => a.toLowerCase()))
 
 /** True for the backing wallets — used to attribute lending positions. */

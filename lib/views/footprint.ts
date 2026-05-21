@@ -15,6 +15,7 @@ import { getEthenaIdleBalances, type IdleBalanceResult } from "@/lib/onchain/bal
 import { getEthenaRlusdHoldings, type XrplRlusdResult } from "@/lib/onchain/xrpl"
 import {
   ETHENA_WALLETS,
+  KNOWN_WALLET_LABELS,
   RESERVE_FUND_WALLET,
   isEthenaWallet,
 } from "@/config/wallets"
@@ -61,6 +62,9 @@ export interface WalletInventoryRow {
    *  (Aave / Morpho / Kamino / Jupiter) or strategy (Liquid Stables).
    *  Undefined when the address isn't disclosed in Ethena's API. */
   apiLabel?: string
+  /** Known on-chain identity from Ethena's attestation reports
+   *  (e.g. "USDe MintRedeem contract"). Undefined when no curated label. */
+  label?: string
   totalUsd: number
 }
 
@@ -457,6 +461,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
         chain: "ethereum",
         role: "backing",
         apiLabel: apiLabels.get(w),
+        label: KNOWN_WALLET_LABELS[w],
         totalUsd: (idleByWallet.get(w) ?? 0) + (deployedByWallet.get(w) ?? 0),
       }
     }),
@@ -466,6 +471,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
       chain: "ethereum",
       role: "reserve-fund",
       apiLabel: apiLabels.get(RESERVE_FUND_WALLET.toLowerCase()),
+      label: KNOWN_WALLET_LABELS[RESERVE_FUND_WALLET.toLowerCase()],
       totalUsd: idle.reserveFundTotalUsd,
     } satisfies WalletInventoryRow,
     ...solanaWallets,
