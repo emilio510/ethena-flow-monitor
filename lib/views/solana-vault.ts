@@ -8,8 +8,8 @@ import {
 import {
   fetchEthenaBorrowingVaults,
   fetchEthenaLendingTokens,
+  computeJupiterRecursion,
   JUPITER_ETHENA_LENDING_VAULT,
-  type FluidBorrowingVault,
 } from "@/lib/solana/fluid"
 import { fetchBackingAssets, type BackingSnapshot } from "@/lib/ethena"
 
@@ -281,7 +281,7 @@ async function loadJupiterView(snapshot: BackingSnapshot): Promise<SolanaVaultVi
   )
   const utilization = totalAssetsUsd > 0 ? clamp(totalUsdgBorrowedUsd / totalAssetsUsd) : 0
 
-  const marketRecursionShare = computeRecursionFromJupiterBorrows(borrowing)
+  const marketRecursionShare = computeJupiterRecursion(borrowing)
   return {
     protocol: "JUPITER LEND",
     address: JUPITER_ETHENA_LENDING_VAULT,
@@ -297,23 +297,6 @@ async function loadJupiterView(snapshot: BackingSnapshot): Promise<SolanaVaultVi
     composition,
     externalUrl: "https://jup.ag/lend/ethena/market",
   }
-}
-
-function computeRecursionFromJupiterBorrows(vaults: FluidBorrowingVault[]): number {
-  // Share of borrowed USDG that's collateralised by USDe / sUSDe.
-  const usdgBorrowVaults = vaults.filter((v) => v.borrowToken.symbol === "USDG")
-  const totalUsdgBorrowed = usdgBorrowVaults.reduce(
-    (s, v) => s + toUsd(Number(v.totalBorrow ?? 0), v.borrowToken.decimals, v.borrowToken.price ?? 1),
-    0,
-  )
-  if (totalUsdgBorrowed <= 0) return 0
-  const ethenaCollatBorrowed = usdgBorrowVaults
-    .filter((v) => v.supplyToken.symbol === "USDe" || v.supplyToken.symbol === "sUSDe")
-    .reduce(
-      (s, v) => s + toUsd(Number(v.totalBorrow ?? 0), v.borrowToken.decimals, v.borrowToken.price ?? 1),
-      0,
-    )
-  return clamp(ethenaCollatBorrowed / totalUsdgBorrowed)
 }
 
 export function isSolanaVaultAddress(address: string): boolean {

@@ -81,23 +81,25 @@ export function lendingUsd(token: FluidLendingToken): { totalSuppliedUsd: number
  * Recursion score for the Jupiter / Bitwise × Ethena USDG-supply pool: the
  * share of borrowed USDG that's collateralised by an Ethena-stack asset.
  *
- * The borrowing side exposes three vaults — USDe→USDG, WSOL→USDG, WSOL→USDe.
- * Only the USDe→USDG vault produces USDG borrows that drain the supply pool
- * we care about. We can't read per-vault borrow totals from this endpoint
- * (only rates + thresholds), so we use the heuristic: the USDe→USDG vault
- * exists iff the recursion is the dominant flow, and we return 1.0 when its
- * borrowRate is bounded under the supplyRate of the lending side (i.e. the
- * market is actually operating). This matches the "100% utilization by
- * design" structure Ethena describes for this market.
+ * The borrowing endpoint exposes per-vault `totalBorrow`, so this is the
+ * actual dollar ratio — not an approximation. Single source of truth for
+ * Jupiter recursion, used by both the footprint row and the vault drilldown.
  */
-export function computeJupiterRecursion(vaults: FluidBorrowingVault[], usdgLending: FluidLendingToken): number {
-  const usdeUsdgVault = vaults.find(
-    (v) => v.supplyToken.symbol === "USDe" && v.borrowToken.symbol === "USDG",
-  )
-  if (!usdeUsdgVault) return 0
-  // Borrow rate must be live AND lending supply rate must be > 0 (else the
-  // market is idle and recursion is meaningless).
-  const lendingRateBps = Number(usdgLending.supplyRate ?? 0)
-  if (lendingRateBps <= 0) return 0
-  return 1
+export function computeJupiterRecursion(vaults: FluidBorrowingVault[]): number {
+  // Share of borrowed USDG collateralised by an Ethena-stack asset
+  // (USDe / sUSDe), computed from actual borrow amounts. Robust to a
+  // transient API hiccup — unlike the old rate-flag heuristic, which
+  // collapsed the whole figure to 0 whenever a supplyRate read blipped.
+  const borrowedUsd = (v: FluidBorrowingVault): number =>
+    (Number(v.totalBorrow ?? 0) / 10 ** v.borrowToken.decimals) *
+    (v.borrowToken.price ?? 1)
+
+  const usdgBorrowVaults = vaults.filter((v) => v.borrowToken.symbol === "USDG")
+  const total = usdgBorrowVaults.reduce((s, v) => s + borrowedUsd(v), 0)
+  if (total <= 0) return 0
+
+  const ethenaCollateral = usdgBorrowVaults
+    .filter((v) => v.supplyToken.symbol === "USDe" || v.supplyToken.symbol === "sUSDe")
+    .reduce((s, v) => s + borrowedUsd(v), 0)
+  return Math.min(1, Math.max(0, ethenaCollateral / total))
 }

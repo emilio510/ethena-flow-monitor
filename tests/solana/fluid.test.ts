@@ -56,11 +56,12 @@ describe("computeJupiterRecursion", () => {
       "@/lib/solana/fluid"
     )
     const vaults = await fetchEthenaBorrowingVaults()
-    // computeJupiterRecursion also needs the lending token; pull it too.
-    stubFetch(lendingFixture)
-    const { fetchEthenaLendingTokens } = await import("@/lib/solana/fluid")
-    const lending = await fetchEthenaLendingTokens()
-    const score = computeJupiterRecursion(vaults, lending[0]!)
-    expect(score).toBeCloseTo(1, 2)
+    // Real $-math from borrow amounts — no dependency on a rate flag.
+    expect(computeJupiterRecursion(vaults)).toBeCloseTo(1, 2)
+  })
+
+  it("returns 0 when no USDG is borrowed", async () => {
+    const { computeJupiterRecursion } = await import("@/lib/solana/fluid")
+    expect(computeJupiterRecursion([])).toBe(0)
   })
 })

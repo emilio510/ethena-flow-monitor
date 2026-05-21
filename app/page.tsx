@@ -60,6 +60,7 @@ export default async function Page() {
     weightedRecursionApprox,
     deployedUsd,
     idle,
+    recursiveUsd,
     trueRecursionShare,
   } = footprint
   const reserveCount = new Set(rows.map((r) => `${r.marketKey}:${r.reserveSymbol}`)).size
@@ -82,6 +83,10 @@ export default async function Page() {
   const reconciliation = ethenaSnapshot
     ? buildReconciliation(ethenaSnapshot, rows, idle.rows)
     : null
+  // Recursive / non-recursive split of total backing. Recursive capital is
+  // what's levered in loops; the rest is backing that stands on its own.
+  const backingBase = ethenaTotal ?? onchainBacking
+  const nonRecursiveUsd = Math.max(0, backingBase - recursiveUsd)
 
   return (
     <main>
@@ -126,6 +131,17 @@ export default async function Page() {
                 ? "$-weighted, approx — sampled"
                 : "$-weighted across reserves"
             }
+          />
+          <KpiCard
+            label="Recursive capital"
+            value={fmtUsd(recursiveUsd)}
+            subValue="levered in loops"
+            tone="recursion"
+          />
+          <KpiCard
+            label="Non-recursive backing"
+            value={fmtUsd(nonRecursiveUsd)}
+            subValue="backing not looped"
           />
           <KpiCard label="Chains active" value={String(chainCount)} />
           <KpiCard label="Markets touched" value={String(reserveCount)} />

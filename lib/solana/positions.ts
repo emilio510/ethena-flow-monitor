@@ -118,7 +118,7 @@ async function buildJupiterRow(ethenaUsd: number): Promise<FootprintRow | null> 
     ethenaSuppliedUsd: ethenaUsd,
     reserveAggregateDeposits: totalSuppliedUsd,
     shareOfReserve: totalSuppliedUsd > 0 ? Math.min(1, ethenaUsd / totalSuppliedUsd) : undefined,
-    recursionScore: computeJupiterRecursion(borrowing, usdgLending),
+    recursionScore: computeJupiterRecursion(borrowing),
     recursionApprox: false,
     isAnomalyBorrow: false,
   }
