@@ -72,14 +72,22 @@ describe("buildReconciliation", () => {
     expect(usdt.note).toMatch(/omnibus/i)
   })
 
-  it("marks RLUSD and custodial BTC/ETH as off-chain (structural, not error)", () => {
+  it("marks custodial BTC/ETH as off-chain (structural, not error)", () => {
     const snap = snapshot([
-      { asset: "RLUSD", value: 300_000_000 },
       { asset: "BTC", value: 13_000_000 },
+      { asset: "ETH", value: 8_000_000 },
     ])
     const r = buildReconciliation(snap, [], [])
-    expect(r.rows.find((x) => x.asset === "RLUSD")!.status).toBe("off-chain")
     expect(r.rows.find((x) => x.asset === "BTC")!.status).toBe("off-chain")
+    expect(r.rows.find((x) => x.asset === "ETH")!.status).toBe("off-chain")
+  })
+
+  it("verifies RLUSD now that the XRPL reader feeds it into idle", () => {
+    // RLUSD is no longer off-chain — when the XRPL balance is present on the
+    // idle side it reconciles like any other stablecoin.
+    const snap = snapshot([{ asset: "RLUSD", value: 300_000_000 }])
+    const r = buildReconciliation(snap, [], idle([{ symbol: "RLUSD", totalUsd: 299_999_000 }]))
+    expect(r.rows.find((x) => x.asset === "RLUSD")!.status).toBe("verified")
   })
 
   it("keys a no-asset counterparty by name and marks CBAM off-chain", () => {

@@ -1,4 +1,12 @@
-type ChainKey = "ethereum" | "base" | "mantle" | "plasma" | "megaeth" | "solana" | string
+type ChainKey =
+  | "ethereum"
+  | "base"
+  | "mantle"
+  | "plasma"
+  | "megaeth"
+  | "solana"
+  | "xrpl"
+  | string
 
 interface Meta {
   initial: string
@@ -13,6 +21,7 @@ const META: Record<ChainKey, Meta> = {
   plasma: { initial: "P", bg: "#34d399", fg: "#0b0c0f" },
   megaeth: { initial: "M", bg: "#cccccc", fg: "#0b0c0f" },
   solana: { initial: "◎", bg: "#9945ff", fg: "#ffffff" },
+  xrpl: { initial: "✕", bg: "#23292f", fg: "#ffffff" },
 }
 
 const FALLBACK: Meta = { initial: "?", bg: "#262932", fg: "#8b8d96" }

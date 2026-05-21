@@ -34,7 +34,6 @@ export interface Reconciliation {
  * this dashboard — no reader exists, so a 100% gap is expected, not a bug.
  */
 const OFF_CHAIN: Record<string, string> = {
-  RLUSD: "XRP Ledger — no on-chain reader",
   BTC: "Custodial (Copper) — delta-neutral basis",
   ETH: "Custodial (Copper) — delta-neutral basis",
   CBAM: "Institutional lending — BTC-anchored, off-chain",

@@ -12,6 +12,7 @@ import {
   type EthenaMorphoResult,
 } from "@/lib/morpho/positions"
 import { getEthenaIdleBalances, type IdleBalanceResult } from "@/lib/onchain/balances"
+import { getEthenaRlusdHoldings, type XrplRlusdResult } from "@/lib/onchain/xrpl"
 import {
   ETHENA_WALLETS,
   RESERVE_FUND_WALLET,
@@ -54,7 +55,7 @@ export interface FootprintRow {
  *  use Ethena's reported USDG value). */
 export interface WalletInventoryRow {
   address: string
-  chain: "ethereum" | "solana"
+  chain: "ethereum" | "solana" | "xrpl"
   role: "backing" | "reserve-fund"
   /** What Ethena's API associates this address with — counterparty name
    *  (Aave / Morpho / Kamino / Jupiter) or strategy (Liquid Stables).
@@ -133,6 +134,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     getMarketAggregates(),
     getEthenaMorphoPositions(),
     getEthenaIdleBalances(),
+    getEthenaRlusdHoldings(),
   ])
 
   const safeUnwrap = <T>(idx: number, name: string, fallback: T): T => {
@@ -158,7 +160,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
       positions: [],
       failedWallets: [],
     })
-  const idle = safeUnwrap(3, "getEthenaIdleBalances", {
+  const idleRaw = safeUnwrap(3, "getEthenaIdleBalances", {
     rows: [],
     totalUsd: 0,
     reserveFundRows: [],
@@ -167,6 +169,24 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     failures: [],
     uncoveredChains: [],
   } as IdleBalanceResult)
+  const rlusd = safeUnwrap<XrplRlusdResult>(4, "getEthenaRlusdHoldings", {
+    totalUsd: 0,
+    wallets: [],
+  })
+
+  // RLUSD lives on the XRP Ledger as idle backing — fold it into the idle
+  // result so it counts toward total backing and the reconciliation.
+  const idle: IdleBalanceResult =
+    rlusd.totalUsd > 0
+      ? {
+          ...idleRaw,
+          rows: [
+            ...idleRaw.rows,
+            { symbol: "RLUSD", totalUsd: rlusd.totalUsd, isErc4626: false },
+          ].sort((a, b) => b.totalUsd - a.totalUsd),
+          totalUsd: idleRaw.totalUsd + rlusd.totalUsd,
+        }
+      : idleRaw
 
   // ───────────────────── Aave footprint
 
@@ -449,6 +469,20 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
       totalUsd: idle.reserveFundTotalUsd,
     } satisfies WalletInventoryRow,
     ...solanaWallets,
+    // XRPL wallets holding RLUSD — identified by us, not in Ethena's API
+    // addressEntries, but the RLUSD asset itself is disclosed under Liquid
+    // Stables.
+    ...rlusd.wallets
+      .filter((w) => w.rlusdUsd > 0)
+      .map(
+        (w): WalletInventoryRow => ({
+          address: w.address,
+          chain: "xrpl",
+          role: "backing",
+          apiLabel: "Liquid Stables",
+          totalUsd: w.rlusdUsd,
+        }),
+      ),
   ].sort((a, b) => b.totalUsd - a.totalUsd)
 
   return {

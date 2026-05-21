@@ -10,9 +10,14 @@ const ROLE_LABEL: Record<WalletInventoryRow["role"], string> = {
 }
 
 function explorerUrl(row: WalletInventoryRow): string {
-  return row.chain === "solana"
-    ? `https://solscan.io/account/${row.address}`
-    : `https://etherscan.io/address/${row.address}`
+  switch (row.chain) {
+    case "solana":
+      return `https://solscan.io/account/${row.address}`
+    case "xrpl":
+      return `https://xrpscan.com/account/${row.address}`
+    default:
+      return `https://etherscan.io/address/${row.address}`
+  }
 }
 
 /**
