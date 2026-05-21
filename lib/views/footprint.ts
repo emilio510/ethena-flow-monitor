@@ -20,7 +20,7 @@ import {
 import { computeReserveRecursion } from "@/lib/recursion/score"
 import { classify, isEthenaStack } from "@/lib/recursion/classify"
 import { getEthenaSolanaPositions } from "@/lib/solana"
-import type { BackingSnapshot } from "@/lib/ethena"
+import { flattenWallets, type BackingSnapshot } from "@/lib/ethena"
 
 export type Protocol = "AAVE V3" | "MORPHO" | "KAMINO" | "JUPITER LEND"
 
@@ -50,10 +50,16 @@ export interface FootprintRow {
 
 /** One monitored wallet and what it holds — the dashboard's "source of
  *  truth" inventory. `totalUsd` = idle wallet balances + deployed lending
- *  positions (the reserve fund's row folds in its Curve LP). */
+ *  positions (the reserve fund's row folds in its Curve LP; Solana rows
+ *  use Ethena's reported USDG value). */
 export interface WalletInventoryRow {
   address: string
+  chain: "ethereum" | "solana"
   role: "backing" | "reserve-fund"
+  /** What Ethena's API associates this address with — counterparty name
+   *  (Aave / Morpho / Kamino / Jupiter) or strategy (Liquid Stables).
+   *  Undefined when the address isn't disclosed in Ethena's API. */
+  apiLabel?: string
   totalUsd: number
 }
 
@@ -388,21 +394,61 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
   const idleByWallet = new Map(
     idle.walletIdleUsd.map((w) => [w.address.toLowerCase(), w.idleUsd]),
   )
+
+  // From Ethena's snapshot: what each address is labelled as (counterparty,
+  // else strategy) and the Solana wallet's USDG holdings. Solana addresses
+  // are case-sensitive base58 — never lowercased; EVM addresses from the
+  // API arrive lowercased and match config/wallets.ts as-is.
+  const apiLabels = new Map<string, string>()
+  const solanaWallets: WalletInventoryRow[] = []
+  if (opts.ethenaSnapshot) {
+    const flat = flattenWallets(opts.ethenaSnapshot)
+    const ctx = new Map<string, { cps: Set<string>; strategies: Set<string> }>()
+    for (const f of flat) {
+      const e = ctx.get(f.address) ?? { cps: new Set(), strategies: new Set() }
+      if (f.counterparty) e.cps.add(f.counterparty)
+      e.strategies.add(f.strategy)
+      ctx.set(f.address, e)
+    }
+    for (const [addr, e] of ctx) {
+      apiLabels.set(addr, e.cps.size > 0 ? [...e.cps].join(", ") : [...e.strategies].join(", "))
+    }
+    const solByAddr = new Map<string, number>()
+    for (const f of flat) {
+      if (f.chainSlug !== "solana") continue
+      solByAddr.set(f.address, (solByAddr.get(f.address) ?? 0) + f.value)
+    }
+    for (const [address, totalUsd] of solByAddr) {
+      solanaWallets.push({
+        address,
+        chain: "solana",
+        role: "backing",
+        apiLabel: apiLabels.get(address),
+        totalUsd,
+      })
+    }
+  }
+
   const walletInventory: WalletInventoryRow[] = [
     ...ETHENA_WALLETS.map((address): WalletInventoryRow => {
       const w = address.toLowerCase()
       return {
         address,
+        chain: "ethereum",
         role: "backing",
+        apiLabel: apiLabels.get(w),
         totalUsd: (idleByWallet.get(w) ?? 0) + (deployedByWallet.get(w) ?? 0),
       }
     }),
+    // Reserve fund: its dust-filtered stablecoins + Curve LP.
     {
-      // Reserve fund: its dust-filtered stablecoins + Curve LP.
       address: RESERVE_FUND_WALLET,
-      role: "reserve-fund" as const,
+      chain: "ethereum",
+      role: "reserve-fund",
+      apiLabel: apiLabels.get(RESERVE_FUND_WALLET.toLowerCase()),
       totalUsd: idle.reserveFundTotalUsd,
-    },
+    } satisfies WalletInventoryRow,
+    ...solanaWallets,
   ].sort((a, b) => b.totalUsd - a.totalUsd)
 
   return {
