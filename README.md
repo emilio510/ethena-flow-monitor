@@ -1,6 +1,6 @@
 # Ethena Flow Monitor
 
-A live dashboard tracking how much of Ethena Labs' collateral stack is being levered through DeFi lending markets — Aave V3 and Morpho Blue, across five chains.
+A live dashboard tracking how much of Ethena Labs' collateral stack is being levered through DeFi lending markets — Aave V3, Morpho Blue, Kamino and Jupiter Lend, across six chains.
 
 **Live:** https://ethena-flow-monitor.vercel.app
 

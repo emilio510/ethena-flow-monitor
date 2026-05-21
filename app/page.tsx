@@ -120,7 +120,7 @@ export default async function Page() {
             }
           />
           <KpiCard label="Chains active" value={String(chainCount)} />
-          <KpiCard label="Reserves touched" value={String(reserveCount)} />
+          <KpiCard label="Markets touched" value={String(reserveCount)} />
           <KpiCard label="Borrow anomalies" value={String(anomalyCount)} />
         </KpiStrip>
         <p className="mt-3 text-[11px] text-[var(--color-text-ghost)]">

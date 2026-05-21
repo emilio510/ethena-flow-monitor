@@ -7,7 +7,8 @@ const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-mono" })
 
 export const metadata: Metadata = {
   title: "Ethena Flow Monitor",
-  description: "Recursive-loop exposure on Aave V3, per Ethena wallet.",
+  description:
+    "Ethena backing composition and recursive-loop exposure across Aave, Morpho, Kamino and Jupiter Lend.",
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
