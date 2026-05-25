@@ -1,3 +1,4 @@
+import { GlassCard } from "@/components/ui/glass-card"
 import { fmtPct } from "@/lib/format"
 
 export function ConcentrationPanel({
@@ -10,7 +11,7 @@ export function ConcentrationPanel({
   top10: number
 }) {
   return (
-    <div className="glass p-5">
+    <GlassCard className="p-5">
       <div className="mb-4 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]">
         Concentration
       </div>
@@ -33,6 +34,6 @@ export function ConcentrationPanel({
           </div>
         ))}
       </div>
-    </div>
+    </GlassCard>
   )
 }

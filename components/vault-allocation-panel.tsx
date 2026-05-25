@@ -1,6 +1,7 @@
 "use client"
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
+import { GlassCard } from "@/components/ui/glass-card"
 import { Tag } from "@/components/ui/tag"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import { classify, type Bucket } from "@/lib/recursion/classify"
@@ -40,7 +41,7 @@ export function VaultAllocationPanel({
   const allocated = allocation.reduce((a, m) => a + m.supplyAssetsUsd, 0)
 
   return (
-    <div className="glass p-5">
+    <GlassCard className="p-5">
       <div className="mb-4 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]">
         Vault allocation
       </div>
@@ -158,6 +159,6 @@ export function VaultAllocationPanel({
           ) : null}
         </div>
       </div>
-    </div>
+    </GlassCard>
   )
 }
