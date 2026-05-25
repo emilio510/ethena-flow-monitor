@@ -15,7 +15,7 @@ import { KpiStrip } from "@/components/kpi-strip"
 import { HeroMeter } from "@/components/ui/hero-meter"
 import { SectionHead } from "@/components/ui/section-head"
 import { ChainIcon } from "@/components/chain-icon"
-import { Tag } from "@/components/tag"
+import { Tag } from "@/components/ui/tag"
 import { VaultAllocationPanel } from "@/components/vault-allocation-panel"
 import { SolanaCompositionPanel } from "@/components/solana-composition-panel"
 import { fmtUsd, fmtPct, shortAddr } from "@/lib/format"
@@ -145,7 +145,7 @@ export default async function Page({
                   {shortAddr(d.walletAddress)}
                 </div>
                 <div>
-                  <Tag variant="ethena">Ethena</Tag>
+                  <Tag tone="ghost">Ethena</Tag>
                 </div>
                 <div className="text-right font-mono text-[13px] text-[var(--color-text)]">
                   {fmtUsd(d.ethenaSuppliedUsd)}
