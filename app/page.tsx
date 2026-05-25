@@ -8,6 +8,7 @@ import { TokenBalanceTable } from "@/components/token-balance-table"
 import { ReconciliationPanel } from "@/components/reconciliation-panel"
 import { MonitoredWalletsTable } from "@/components/monitored-wallets-table"
 import { buildReconciliation } from "@/lib/views/reconciliation"
+import { Tag } from "@/components/ui/tag"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import { custodialValue, fetchBackingAssets, totalBacking } from "@/lib/ethena"
 import type { BackingSnapshot } from "@/lib/ethena"
@@ -99,20 +100,16 @@ export default async function Page() {
               {ethenaTotal !== null ? fmtUsd(ethenaTotal) : fmtUsd(onchainBacking)}
             </div>
             {ethenaTotal !== null && verifierDeltaPct !== null ? (
-              <span
-                className={`mt-3 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-[11px] ${
-                  verifierOk
-                    ? "border-[color:rgba(48,209,88,0.25)] bg-[var(--color-ok-soft)] text-[var(--color-ok)]"
-                    : "border-[color:rgba(255,159,10,0.25)] bg-[var(--color-warn-soft)] text-[var(--color-warn)]"
-                }`}
-              >
-                {verifierOk ? "✓" : "⚠"} on-chain {verifierDeltaPct >= 0 ? "+" : ""}
-                {fmtPct(verifierDeltaPct)} vs Ethena reported
-              </span>
+              <div className="mt-3">
+                <Tag tone={verifierOk ? "ok" : "warn"}>
+                  {verifierOk ? "✓" : "⚠"} on-chain {verifierDeltaPct >= 0 ? "+" : ""}
+                  {fmtPct(verifierDeltaPct)} vs Ethena reported
+                </Tag>
+              </div>
             ) : (
-              <span className="mt-3 inline-flex rounded-full border border-[var(--color-border)] bg-[color:rgba(255,255,255,0.04)] px-2.5 py-1 font-mono text-[11px] text-[var(--color-text-ghost)]">
-                on-chain only — Ethena API unavailable
-              </span>
+              <div className="mt-3">
+                <Tag tone="ghost">on-chain only — Ethena API unavailable</Tag>
+              </div>
             )}
           </div>
           <HeroMeter
