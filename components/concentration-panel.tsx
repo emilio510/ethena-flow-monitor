@@ -10,8 +10,8 @@ export function ConcentrationPanel({
   top10: number
 }) {
   return (
-    <div className="border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5">
-      <div className="mb-4 text-[10px] uppercase tracking-[0.1em] text-[var(--color-accent)]">
+    <div className="glass p-5">
+      <div className="mb-4 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]">
         Concentration
       </div>
       <div className="grid grid-cols-3 gap-4">
@@ -24,10 +24,10 @@ export function ConcentrationPanel({
             key={c.label}
             className="border border-[var(--color-border)] bg-[var(--color-bg)] px-4 py-3"
           >
-            <div className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-accent)]">
+            <div className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]">
               {c.label}
             </div>
-            <div className="mt-1.5 text-[22px] leading-[1.1] tracking-tight text-[var(--color-success)]">
+            <div className="mt-1.5 font-mono text-[22px] leading-[1.1] tracking-tight text-[var(--color-ok)]">
               {fmtPct(c.value)}
             </div>
           </div>
