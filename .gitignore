@@ -50,3 +50,4 @@ next-env.d.ts
 .after-final.png
 *.local-screenshot.png
 .tmp-screenshots/
+.superpowers/
