@@ -1,12 +1,12 @@
-import { Tag } from "./tag"
+import { Tag } from "@/components/ui/tag"
 import { PositionBar } from "./position-bar"
 import { fmtUsd, shortAddr } from "@/lib/format"
 import type { CollateralUserRow } from "@/lib/views/reserve"
 
 function hfTag(hf: number | null) {
   if (hf === null) return null
-  if (hf < 1) return <Tag variant="anomaly">Liquidatable</Tag>
-  if (hf < 1.1) return <Tag variant="pt">At risk</Tag>
+  if (hf < 1) return <Tag tone="risk">Liquidatable</Tag>
+  if (hf < 1.1) return <Tag tone="warn">At risk</Tag>
   return null
 }
 
@@ -19,9 +19,9 @@ export function CollateralUsersTable({ rows }: { rows: CollateralUserRow[] }) {
   const list = [...pinned, ...rest]
 
   return (
-    <div className="border border-[var(--color-border)]">
+    <div>
       <div
-        className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]`}
+        className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--color-text-ghost)]`}
       >
         <div>#</div>
         <div>Wallet</div>
@@ -33,28 +33,28 @@ export function CollateralUsersTable({ rows }: { rows: CollateralUserRow[] }) {
       {list.map((r, i) => (
         <div
           key={r.userAddress + i}
-          className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5`}
+          className={`grid ${COLS} items-center gap-4 border-b border-dashed border-[var(--color-border)] px-4 py-2.5 last:border-none transition-colors hover:bg-[var(--color-bg-elev)]`}
         >
-          <div className="text-[12px] text-[var(--color-text-ghost)]">#{i + 1}</div>
-          <div className="text-[13px] text-[var(--color-accent)]">{shortAddr(r.userAddress)}</div>
+          <div className="font-mono text-[12px] text-[var(--color-text-ghost)]">#{i + 1}</div>
+          <div className="font-mono text-[13px] text-[var(--color-text-ghost)]">{shortAddr(r.userAddress)}</div>
           <div>
             {r.isEthena ? (
-              <Tag variant="ethena">Ethena</Tag>
+              <Tag tone="risk">Ethena</Tag>
             ) : (
-              (hfTag(r.healthFactor) ?? <Tag variant="pt">Leveraged</Tag>)
+              (hfTag(r.healthFactor) ?? <Tag tone="warn">Leveraged</Tag>)
             )}
           </div>
-          <div className="text-right text-[13px] text-[var(--color-text)]">
+          <div className="text-right font-mono text-[13px] text-[var(--color-text)]">
             {fmtUsd(r.reserveSupplyUsd)}
           </div>
           <div
-            className={`text-right text-[12px] ${
+            className={`text-right font-mono text-[12px] ${
               r.healthFactor === null
                 ? "text-[var(--color-text-ghost)]"
                 : r.healthFactor < 1
-                  ? "text-[var(--color-recursion)]"
+                  ? "text-[var(--color-risk)]"
                   : r.healthFactor < 1.1
-                    ? "text-[var(--color-pt-tag)]"
+                    ? "text-[var(--color-warn)]"
                     : "text-[var(--color-text-dim)]"
             }`}
           >
