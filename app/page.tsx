@@ -2,6 +2,7 @@ import { loadFootprint } from "@/lib/views/footprint"
 import { Header } from "@/components/header"
 import { KpiCard } from "@/components/kpi-card"
 import { KpiStrip } from "@/components/kpi-strip"
+import { HeroMeter } from "@/components/ui/hero-meter"
 import { FootprintTable } from "@/components/footprint-table"
 import { TokenBalanceTable } from "@/components/token-balance-table"
 import { ReconciliationPanel } from "@/components/reconciliation-panel"
@@ -56,16 +57,10 @@ export default async function Page() {
     rows,
     failedWallets,
     walletInventory,
-    weightedRecursion,
-    weightedRecursionApprox,
     deployedUsd,
     idle,
     recursiveUsd,
-    trueRecursionShare,
   } = footprint
-  const reserveCount = new Set(rows.map((r) => `${r.marketKey}:${r.reserveSymbol}`)).size
-  const chainCount = new Set(rows.map((r) => r.chain)).size
-  const anomalyCount = rows.filter((r) => r.isAnomalyBorrow).length
   const onchainBacking = deployedUsd + idle.totalUsd
   // Headline = Ethena's reported total when available, fall back to on-chain.
   const ethenaTotal = ethenaSnapshot ? totalBacking(ethenaSnapshot) : null
@@ -91,25 +86,51 @@ export default async function Page() {
   return (
     <main>
       <Header renderedAt={renderedAt} failedWallets={failedWallets} />
-      <section className="px-6 py-6">
-        <h1 className="mb-4 text-xl uppercase tracking-wider text-[var(--color-accent)]">
-          Ethena footprint
-        </h1>
-        <KpiStrip>
-          <KpiCard
-            label="Total backing"
-            value={ethenaTotal !== null ? fmtUsd(ethenaTotal) : fmtUsd(onchainBacking)}
-            subValue={
-              ethenaTotal !== null && verifierDeltaPct !== null ? (
-                <span className={verifierOk ? "text-[var(--color-success)]" : undefined}>
-                  {verifierOk ? "✓" : "⚠"} on-chain {verifierDeltaPct >= 0 ? "+" : ""}
-                  {fmtPct(verifierDeltaPct)} vs Ethena
-                </span>
-              ) : (
-                "on-chain only — Ethena API unavailable"
-              )
+      <section className="px-6 pt-8 pb-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.5fr_1fr]">
+          <div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-ghost)]">
+              Total backing
+            </div>
+            <div
+              className="mt-2 font-mono text-[44px] font-light leading-none tracking-[-0.03em] text-[var(--color-text)] opacity-0"
+              style={{ animation: "efm-rise 700ms var(--ease-out) 100ms forwards" }}
+            >
+              {ethenaTotal !== null ? fmtUsd(ethenaTotal) : fmtUsd(onchainBacking)}
+            </div>
+            {ethenaTotal !== null && verifierDeltaPct !== null ? (
+              <span
+                className={`mt-3 inline-flex items-center gap-2 rounded-full border px-2.5 py-1 font-mono text-[11px] ${
+                  verifierOk
+                    ? "border-[color:rgba(48,209,88,0.25)] bg-[var(--color-ok-soft)] text-[var(--color-ok)]"
+                    : "border-[color:rgba(255,159,10,0.25)] bg-[var(--color-warn-soft)] text-[var(--color-warn)]"
+                }`}
+              >
+                {verifierOk ? "✓" : "⚠"} on-chain {verifierDeltaPct >= 0 ? "+" : ""}
+                {fmtPct(verifierDeltaPct)} vs Ethena reported
+              </span>
+            ) : (
+              <span className="mt-3 inline-flex rounded-full border border-[var(--color-border)] bg-[color:rgba(255,255,255,0.04)] px-2.5 py-1 font-mono text-[11px] text-[var(--color-text-ghost)]">
+                on-chain only — Ethena API unavailable
+              </span>
+            )}
+          </div>
+          <HeroMeter
+            label="Recursive exposure"
+            ratio={backingBase > 0 ? recursiveUsd / backingBase : 0}
+            rightCaption={
+              <>
+                {fmtUsd(recursiveUsd)}
+                <br />
+                of {fmtUsd(backingBase)}
+              </>
             }
           />
+        </div>
+      </section>
+
+      <section className="px-6 pb-6">
+        <KpiStrip columns={4}>
           <KpiCard
             label="Custodial / off-chain"
             value={ethenaCustodial !== null ? fmtUsd(ethenaCustodial) : "—"}
@@ -117,72 +138,11 @@ export default async function Page() {
           />
           <KpiCard label="Deployed in lending" value={fmtUsd(deployedUsd)} />
           <KpiCard label="Idle backing" value={fmtUsd(idle.totalUsd)} />
-          <KpiCard
-            label="True recursion"
-            value={fmtPct(trueRecursionShare)}
-            subValue="recursive ÷ total backing"
-            tone="recursion"
-          />
-          <KpiCard
-            label="Recursion (deployed)"
-            value={fmtPct(weightedRecursion)}
-            subValue={
-              weightedRecursionApprox
-                ? "$-weighted, approx — sampled"
-                : "$-weighted across reserves"
-            }
-          />
-          <KpiCard
-            label="Recursive capital"
-            value={fmtUsd(recursiveUsd)}
-            subValue="levered in loops"
-            tone="recursion"
-          />
-          <KpiCard
-            label="Non-recursive backing"
-            value={fmtUsd(nonRecursiveUsd)}
-            subValue="backing not looped"
-          />
-          <KpiCard label="Chains active" value={String(chainCount)} />
-          <KpiCard label="Markets touched" value={String(reserveCount)} />
-          <KpiCard label="Borrow anomalies" value={String(anomalyCount)} />
+          <KpiCard label="Non-recursive backing" value={fmtUsd(nonRecursiveUsd)} />
         </KpiStrip>
-        <p className="mt-3 text-[11px] text-[var(--color-text-ghost)]">
-          {ethenaSnapshot ? (
-            <>
-              Headline figures from{" "}
-              <a
-                className="underline hover:text-[var(--color-accent)]"
-                href="https://app.ethena.fi/dashboards/backing-assets"
-                target="_blank"
-                rel="noreferrer"
-              >
-                app.ethena.fi/dashboards/backing-assets
-              </a>{" "}
-              (snapshot{" "}
-              {new Date(ethenaSnapshot.timestamp * 1000).toISOString().replace("T", " ").slice(0, 16)}
-              Z). Custodial covers Copper-held BTC/ETH backing INTX shorts and
-              CBAM's BTC-anchored institutional lending. The verifier badge
-              cross-checks our independent on-chain reads against Ethena's
-              verifiable (non-custodial) total.
-            </>
-          ) : (
-            <>
-              Note: Ethena&apos;s reporting API is currently unavailable; the
-              dashboard is showing on-chain figures only and excludes ~$31M of
-              custodial backing. See{" "}
-              <a
-                className="underline hover:text-[var(--color-accent)]"
-                href="https://app.ethena.fi/dashboards/backing-assets"
-                target="_blank"
-                rel="noreferrer"
-              >
-                app.ethena.fi/dashboards/backing-assets
-              </a>{" "}
-              for the canonical view.
-            </>
-          )}
-        </p>
+      </section>
+
+      <section className="px-6 pb-6">
         <div className="mt-6">
           <FootprintTable rows={rows} />
         </div>

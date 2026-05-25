@@ -2,8 +2,8 @@ type Tone = "default" | "recursion" | "accent"
 
 const VALUE_TONE: Record<Tone, string> = {
   default: "text-[var(--color-text)]",
-  recursion: "text-[var(--color-recursion)]",
-  accent: "text-[var(--color-success)]",
+  recursion: "text-[var(--color-risk)]",
+  accent: "text-[var(--color-ok)]",
 }
 
 export function KpiCard({
@@ -18,15 +18,15 @@ export function KpiCard({
   tone?: Tone
 }) {
   return (
-    <div className="border border-[var(--color-border)] bg-[var(--color-bg-card)] px-4 py-3">
-      <div className="text-[10px] uppercase tracking-[0.1em] text-[var(--color-accent)]">
+    <div className="bg-[var(--color-bg-elev)] px-4 py-3 efm-rise">
+      <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-ghost)]">
         {label}
       </div>
-      <div className={`mt-1.5 text-[24px] leading-[1.1] tracking-tight ${VALUE_TONE[tone]}`}>
+      <div className={`mt-1.5 font-mono text-[18px] font-light leading-[1.1] tracking-[-0.02em] ${VALUE_TONE[tone]}`}>
         {value}
       </div>
       {subValue && (
-        <div className="mt-1 text-[10px] text-[var(--color-text-ghost)]">{subValue}</div>
+        <div className="mt-1 font-mono text-[10px] text-[var(--color-text-ghost)]">{subValue}</div>
       )}
     </div>
   )
