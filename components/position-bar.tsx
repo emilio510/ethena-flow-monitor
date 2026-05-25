@@ -104,7 +104,7 @@ function Segment({
       className="flex h-full items-center justify-center overflow-hidden truncate px-1.5 text-[9px] font-medium text-white"
       style={{ width: `${parentWidthPct}%`, background: fill }}
     >
-      {showLabel ? <span className="truncate tracking-tight">{label}</span> : null}
+      {showLabel ? <span className="truncate font-mono tracking-tight">{label}</span> : null}
     </div>
   )
 }
