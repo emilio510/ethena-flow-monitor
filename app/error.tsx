@@ -16,22 +16,22 @@ export default function Error({
   return (
     <main className="min-h-screen px-6 py-12">
       <div className="mx-auto max-w-xl border border-[var(--color-border)] bg-[var(--color-bg-card)] p-6">
-        <div className="mb-2 text-[10px] uppercase tracking-wider text-[var(--color-recursion)]">
+        <div className="mb-2 text-[10px] uppercase tracking-wider text-[var(--color-risk)]">
           Something went wrong
         </div>
-        <p className="mb-4 text-sm text-[var(--color-text-muted)]">
+        <p className="mb-4 text-sm text-[var(--color-text-dim)]">
           The dashboard could not load this page. The TokenLogic API may be down or
           unreachable. Try again, or come back in a moment.
         </p>
         {error.digest ? (
-          <p className="mb-4 text-xs text-[var(--color-text-muted)]">
+          <p className="mb-4 text-xs text-[var(--color-text-dim)]">
             Error reference: {error.digest}
           </p>
         ) : null}
         <button
           type="button"
           onClick={reset}
-          className="border border-[var(--color-accent)] px-3 py-1 text-xs uppercase tracking-wider text-[var(--color-accent)] hover:bg-[var(--color-bg)]"
+          className="border border-[var(--color-text-ghost)] px-3 py-1 text-xs uppercase tracking-wider text-[var(--color-text-ghost)] hover:bg-[var(--color-bg)]"
         >
           Retry
         </button>

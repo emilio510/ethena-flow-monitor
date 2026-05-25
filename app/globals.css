@@ -27,17 +27,6 @@
   --color-warn: #ff9f0a;
   --color-warn-soft: rgba(255, 159, 10, 0.10);
 
-  /* Back-compat aliases (existing components reference these — keep until rewired) */
-  --color-hairline: var(--color-border);
-  --color-text-muted: var(--color-text-dim);
-  --color-accent: rgba(255, 255, 255, 0.55);
-  --color-accent-soft: rgba(255, 255, 255, 0.35);
-  --color-success: #30d158;
-  --color-recursion: #ff453a;
-  --color-pt-tag: #ff9f0a;
-  --color-chart-fill: rgba(255, 255, 255, 0.45);
-  --color-chart-blue: rgba(255, 255, 255, 0.25);
-
   /* Motion */
   --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
   --dur-fast: 200ms;
