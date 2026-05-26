@@ -29,7 +29,7 @@ export function ReserveTabs({
 
   return (
     <div>
-      <div className="mb-3 flex items-center gap-2">
+      <div className="mb-3 flex items-center border-b border-[var(--color-border)]">
         <TabButton
           active={tab === "depositors"}
           onClick={() => setTab("depositors")}
@@ -82,17 +82,17 @@ function TabButton({
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`flex items-center gap-2 border px-3 py-1.5 text-[10px] uppercase tracking-[0.1em] transition-colors ${
+      className={`flex items-center gap-2 px-3 py-2 text-[10px] uppercase tracking-[0.1em] transition-colors ${
         active
-          ? "border-[var(--color-accent)] text-[var(--color-accent)]"
+          ? "border-b-2 border-[var(--color-text)] text-[var(--color-text)]"
           : disabled
-            ? "border-[var(--color-border)] text-[var(--color-text-ghost)] opacity-50"
-            : "border-[var(--color-border)] text-[var(--color-text-dim)] hover:border-[var(--color-text-dim)] hover:text-[var(--color-text)]"
+            ? "text-[var(--color-text-ghost)] opacity-50"
+            : "text-[var(--color-text-ghost)] hover:text-[var(--color-text)]"
       }`}
     >
       <span>{children}</span>
       <span className="text-[var(--color-text-ghost)]">·</span>
-      <span className="text-[var(--color-text-dim)]">{count}</span>
+      <span className="font-mono text-[var(--color-text-ghost)]">{count}</span>
     </button>
   )
 }

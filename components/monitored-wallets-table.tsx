@@ -46,9 +46,9 @@ export function MonitoredWalletsTable({ rows }: { rows: WalletInventoryRow[] }) 
         the address is disclosed under — blank means undisclosed
         (custodian-omnibus or reserve fund).
       </p>
-      <div className="border border-[var(--color-border)]">
+      <div>
         <div
-          className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]`}
+          className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--color-text-ghost)]`}
         >
           <div>Address</div>
           <div>Role</div>
@@ -58,7 +58,7 @@ export function MonitoredWalletsTable({ rows }: { rows: WalletInventoryRow[] }) 
         {rows.map((r) => (
           <div
             key={r.address}
-            className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5`}
+            className={`grid ${COLS} items-center gap-4 border-b border-dashed border-[var(--color-border)] px-4 py-2.5 last:border-none transition-colors hover:bg-[var(--color-bg-elev)]`}
           >
             <div className="flex min-w-0 items-center gap-2">
               <ChainIcon chain={r.chain} size={14} />
@@ -67,7 +67,7 @@ export function MonitoredWalletsTable({ rows }: { rows: WalletInventoryRow[] }) 
                   href={explorerUrl(r)}
                   target="_blank"
                   rel="noreferrer"
-                  className="block truncate font-[family-name:var(--font-mono)] text-[12px] text-[var(--color-accent)] hover:underline"
+                  className="block truncate font-mono text-[11px] text-[var(--color-text-dim)] hover:underline"
                 >
                   {r.address}
                 </a>
@@ -94,7 +94,7 @@ export function MonitoredWalletsTable({ rows }: { rows: WalletInventoryRow[] }) 
                 <span className="text-[var(--color-text-ghost)]">not disclosed</span>
               )}
             </div>
-            <div className="text-right text-[13px] text-[var(--color-text)]">
+            <div className="text-right font-mono text-[13px] text-[var(--color-text)]">
               {fmtUsd(r.totalUsd)}
             </div>
           </div>

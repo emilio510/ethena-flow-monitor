@@ -3,6 +3,7 @@ import { loadReserveView, ReserveNotFoundError } from "@/lib/views/reserve"
 import { Header } from "@/components/header"
 import { KpiCard } from "@/components/kpi-card"
 import { KpiStrip } from "@/components/kpi-strip"
+import { HeroMeter } from "@/components/ui/hero-meter"
 import { ConcentrationPanel } from "@/components/concentration-panel"
 import { ReserveTabs } from "@/components/reserve-tabs"
 import { RecursionPanel } from "@/components/recursion-panel"
@@ -47,22 +48,36 @@ export default async function Page({
   return (
     <main>
       <Header renderedAt={Date.now()} />
-      <section className="px-8 pb-12">
-        <div className="mb-6 flex items-baseline gap-3">
-          <h1 className="text-[32px] uppercase tracking-tight text-[var(--color-accent)]">
-            {symbol}
-          </h1>
-          <span className="text-[13px] text-[var(--color-text-dim)]">on</span>
-          <span className="flex items-center gap-2">
-            <ChainIcon chain={chain} size={18} />
-            <span className="text-[13px] capitalize text-[var(--color-text)]">{chain}</span>
-          </span>
-          <span className="text-[var(--color-text-ghost)]">·</span>
-          <span className="text-[12px] uppercase tracking-[0.05em] text-[var(--color-text-ghost)]">
-            Aave V3
-          </span>
+      <section className="px-6 pt-8 pb-6">
+        <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1.5fr_1fr]">
+          <div>
+            <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-ghost)]">
+              Aave V3 reserve
+            </div>
+            <div className="mt-2 font-mono text-[28px] font-light leading-none tracking-[-0.02em] text-[var(--color-text)]">
+              {symbol}
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <ChainIcon chain={chain} size={16} />
+              <span className="text-[12px] capitalize text-[var(--color-text-ghost)]">{chain}</span>
+            </div>
+          </div>
+          <HeroMeter
+            label="Utilization"
+            ratio={view.utilization}
+            rightCaption={
+              <>
+                {fmtUsd(view.totalBorrowUsd)} borrowed
+                <br />
+                of {fmtUsd(view.totalSupplyUsd)} supplied
+              </>
+            }
+            threshold={0.95}
+          />
         </div>
+      </section>
 
+      <section className="px-6 pb-6">
         <KpiStrip>
           <KpiCard label="Total supplied" value={fmtUsd(view.totalSupplyUsd)} />
           <KpiCard label="Total borrowed" value={fmtUsd(view.totalBorrowUsd)} />
@@ -79,24 +94,26 @@ export default async function Page({
             tone="recursion"
           />
         </KpiStrip>
+      </section>
 
-        <div className="mt-8 grid grid-cols-1 gap-5 lg:grid-cols-2">
+      <section className="px-6 pb-6">
+        <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           <ConcentrationPanel {...view.concentration} />
           <RecursionPanel
             ethenaCollateralBorrowShare={view.recursion.ethenaCollateralBorrowShare}
             breakdown={breakdown}
           />
         </div>
+      </section>
 
-        <div className="mt-8">
-          <ReserveTabs
-            reserveSymbol={symbol}
-            totalSupplyUsd={view.totalSupplyUsd}
-            depositors={view.topDepositors}
-            borrowers={view.topBorrowers}
-            collateralUsers={view.topCollateralUsers}
-          />
-        </div>
+      <section className="px-6 pb-8">
+        <ReserveTabs
+          reserveSymbol={symbol}
+          totalSupplyUsd={view.totalSupplyUsd}
+          depositors={view.topDepositors}
+          borrowers={view.topBorrowers}
+          collateralUsers={view.topCollateralUsers}
+        />
       </section>
     </main>
   )

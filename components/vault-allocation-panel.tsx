@@ -1,15 +1,16 @@
 "use client"
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts"
-import { Tag } from "./tag"
+import { GlassCard } from "@/components/ui/glass-card"
+import { Tag } from "@/components/ui/tag"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import { classify, type Bucket } from "@/lib/recursion/classify"
 import type { VaultMarketAllocation } from "@/lib/views/vault"
 
 const COLORS: Record<Bucket, string> = {
-  TIER_1: "var(--color-recursion)",
-  PT: "var(--color-pt-tag)",
-  TIER_2: "var(--color-chart-fill)",
+  TIER_1: "var(--color-risk)",
+  PT: "var(--color-warn)",
+  TIER_2: "rgba(255,255,255,0.45)",
   OTHER: "#3a4054",
 }
 
@@ -40,12 +41,12 @@ export function VaultAllocationPanel({
   const allocated = allocation.reduce((a, m) => a + m.supplyAssetsUsd, 0)
 
   return (
-    <div className="border border-[var(--color-border)] bg-[var(--color-bg-card)] p-5">
-      <div className="mb-4 text-[10px] uppercase tracking-[0.1em] text-[var(--color-accent)]">
+    <GlassCard className="p-5">
+      <div className="mb-4 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]">
         Vault allocation
       </div>
       <div className="mb-6 flex items-baseline gap-2">
-        <span className="text-[26px] tracking-tight text-[var(--color-text)]">
+        <span className="font-mono text-[26px] tracking-tight text-[var(--color-text)]">
           {fmtPct(vaultRecursionShare)}
         </span>
         <span className="text-[12px] text-[var(--color-text-dim)]">
@@ -81,7 +82,7 @@ export function VaultAllocationPanel({
             </PieChart>
           </ResponsiveContainer>
           <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-            <div className="text-[18px] tracking-tight text-[var(--color-text)]">
+            <div className="font-mono text-[18px] tracking-tight text-[var(--color-text)]">
               {fmtUsd(totalAssetsUsd)}
             </div>
             <div className="text-[9px] uppercase tracking-[0.12em] text-[var(--color-text-ghost)]">
@@ -109,19 +110,19 @@ export function VaultAllocationPanel({
                     style={{ background: COLORS[bucket] }}
                   />
                   <span className="truncate text-[13px] text-[var(--color-text)]">
-                    <span className="text-[var(--color-accent)]">
+                    <span className="text-[var(--color-text-ghost)]">
                       {a.collateralSymbol ?? "—"}
                     </span>
                     <span className="mx-1.5 text-[var(--color-text-ghost)]">/</span>
                     <span>{a.loanSymbol ?? "—"}</span>
                   </span>
-                  {a.isRecursive ? <Tag variant="ethena">Recursive</Tag> : null}
+                  {a.isRecursive ? <Tag tone="risk">Recursive</Tag> : null}
                 </div>
-                <div className="text-right text-[13px] text-[var(--color-text)]">
+                <div className="text-right font-mono text-[13px] text-[var(--color-text)]">
                   {fmtUsd(a.supplyAssetsUsd)}
                 </div>
                 <div
-                  className={`text-right text-[13px] ${
+                  className={`text-right font-mono text-[13px] ${
                     a.attributedBorrowUsd > 0
                       ? "text-[var(--color-text)]"
                       : "text-[var(--color-text-ghost)]"
@@ -138,7 +139,7 @@ export function VaultAllocationPanel({
                     }}
                     aria-hidden
                   />
-                  <div className="relative px-2 py-0.5 text-right text-[13px] text-[var(--color-text)]">
+                  <div className="relative px-2 py-0.5 text-right font-mono text-[13px] text-[var(--color-text)]">
                     {fmtPct(a.marketUtilization)}
                   </div>
                 </div>
@@ -158,6 +159,6 @@ export function VaultAllocationPanel({
           ) : null}
         </div>
       </div>
-    </div>
+    </GlassCard>
   )
 }

@@ -14,7 +14,19 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${sans.variable} ${mono.variable}`}>
-      <body>{children}</body>
+      <body className="relative min-h-screen overflow-x-hidden">
+        {/* Background glows — fixed so they don't scroll with content */}
+        <div
+          aria-hidden
+          className="pointer-events-none fixed -left-32 -top-40 h-[520px] w-[520px] rounded-full bg-white opacity-[0.04] blur-[100px]"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none fixed -right-40 top-[20vh] h-[420px] w-[420px] rounded-full opacity-[0.18] blur-[100px]"
+          style={{ background: "var(--color-risk)" }}
+        />
+        <div className="relative z-10">{children}</div>
+      </body>
     </html>
   )
 }

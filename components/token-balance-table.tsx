@@ -1,3 +1,4 @@
+import { AssetIcon } from "@/components/ui/asset-icon"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import type { IdleBalanceRow } from "@/lib/onchain/balances"
 
@@ -37,9 +38,9 @@ export function TokenBalanceTable({
       {note ? (
         <p className="mb-3 text-[11px] text-[var(--color-text-ghost)]">{note}</p>
       ) : null}
-      <div className="border border-[var(--color-border)]">
+      <div>
         <div
-          className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]`}
+          className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--color-text-ghost)]`}
         >
           <div>Token</div>
           <div className="text-right">USD Value</div>
@@ -50,17 +51,20 @@ export function TokenBalanceTable({
           return (
             <div
               key={r.symbol}
-              className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5`}
+              className={`grid ${COLS} items-center gap-4 border-b border-dashed border-[var(--color-border)] px-4 py-2.5 last:border-none transition-colors hover:bg-[var(--color-bg-elev)]`}
             >
-              <div className="flex items-center gap-2">
-                <span className="text-[13px] text-[var(--color-accent)]">{r.symbol}</span>
-                {r.isErc4626 ? (
-                  <span className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-ghost)]">
-                    vault
-                  </span>
-                ) : null}
+              <div className="flex items-center gap-2.5">
+                <AssetIcon symbol={r.symbol} />
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] text-[var(--color-text-ghost)]">{r.symbol}</span>
+                  {r.isErc4626 ? (
+                    <span className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-ghost)]">
+                      vault
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <div className="text-right text-[13px] text-[var(--color-text)]">
+              <div className="text-right font-mono text-[13px] text-[var(--color-text)]">
                 {fmtUsd(r.totalUsd)}
               </div>
               <div className="relative">
@@ -69,7 +73,7 @@ export function TokenBalanceTable({
                   style={{ width: `${Math.min(100, share * 100)}%` }}
                   aria-hidden
                 />
-                <div className="relative px-2 py-0.5 text-right text-[13px] text-[var(--color-text)]">
+                <div className="relative px-2 py-0.5 text-right font-mono text-[13px] text-[var(--color-text)]">
                   {fmtPct(share)}
                 </div>
               </div>

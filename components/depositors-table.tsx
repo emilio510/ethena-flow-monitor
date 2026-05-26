@@ -1,11 +1,11 @@
-import { Tag } from "./tag"
+import { Tag } from "@/components/ui/tag"
 import { fmtUsd, fmtPct, shortAddr } from "@/lib/format"
 import type { DepositorRow } from "@/lib/views/reserve"
 
 function rowTag(r: DepositorRow) {
-  if (r.isEthena) return <Tag variant="ethena">Ethena</Tag>
-  if (r.isLeveraged) return <Tag variant="pt">Leveraged</Tag>
-  return <Tag variant="passive">Passive</Tag>
+  if (r.isEthena) return <Tag tone="risk">Ethena</Tag>
+  if (r.isLeveraged) return <Tag tone="warn">Leveraged</Tag>
+  return <Tag tone="ok">Passive</Tag>
 }
 
 export function DepositorsTable({
@@ -20,8 +20,8 @@ export function DepositorsTable({
   const list = [...pinned, ...rest]
 
   return (
-    <div className="border border-[var(--color-border)]">
-      <div className="grid grid-cols-[40px_minmax(0,1.5fr)_110px_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]">
+    <div>
+      <div className="grid grid-cols-[40px_minmax(0,1.5fr)_110px_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--color-text-ghost)]">
         <div>#</div>
         <div>Wallet</div>
         <div></div>
@@ -33,12 +33,12 @@ export function DepositorsTable({
         return (
           <div
             key={r.userAddress + i}
-            className="grid grid-cols-[40px_minmax(0,1.5fr)_110px_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5"
+            className="grid grid-cols-[40px_minmax(0,1.5fr)_110px_minmax(0,1fr)_minmax(0,1.2fr)] items-center gap-4 border-b border-dashed border-[var(--color-border)] px-4 py-2.5 last:border-none transition-colors hover:bg-[var(--color-bg-elev)]"
           >
-            <div className="text-[12px] text-[var(--color-text-ghost)]">#{i + 1}</div>
-            <div className="text-[13px] text-[var(--color-accent)]">{shortAddr(r.userAddress)}</div>
+            <div className="font-mono text-[12px] text-[var(--color-text-ghost)]">#{i + 1}</div>
+            <div className="font-mono text-[13px] text-[var(--color-text-ghost)]">{shortAddr(r.userAddress)}</div>
             <div>{rowTag(r)}</div>
-            <div className="text-right text-[13px] text-[var(--color-text)]">
+            <div className="text-right font-mono text-[13px] text-[var(--color-text)]">
               {fmtUsd(r.amountUsd)}
             </div>
             <div className="relative">
@@ -47,7 +47,7 @@ export function DepositorsTable({
                 style={{ width: `${Math.min(100, share * 100)}%` }}
                 aria-hidden
               />
-              <div className="relative px-2 py-0.5 text-right text-[13px] text-[var(--color-text)]">
+              <div className="relative px-2 py-0.5 text-right font-mono text-[13px] text-[var(--color-text)]">
                 {totalSupplyUsd > 0 ? fmtPct(share) : "—"}
               </div>
             </div>

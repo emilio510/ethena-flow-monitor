@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Tag } from "./tag"
+import { Tag } from "@/components/ui/tag"
 import { ChainIcon } from "./chain-icon"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import type { FootprintRow } from "@/lib/views/footprint"
@@ -9,9 +9,9 @@ const COLS =
 
 export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
   return (
-    <div className="border border-[var(--color-border)]">
+    <div>
       <div
-        className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] uppercase tracking-[0.1em] text-[var(--color-text-ghost)]`}
+        className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 text-[10px] font-medium uppercase tracking-[0.1em] text-[var(--color-text-ghost)]`}
       >
         <div>Chain</div>
         <div>Protocol</div>
@@ -32,7 +32,7 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
           <Link
             key={`${r.marketKey}|${r.reserveSymbol}|${r.ethenaSuppliedUsd}|${r.isAnomalyBorrow}`}
             href={href}
-            className={`grid ${COLS} items-center gap-4 border-b border-[var(--color-border)] px-4 py-2.5 transition-colors hover:bg-[color:rgb(245_204_76_/_0.04)]`}
+            className={`grid ${COLS} items-center gap-4 border-b border-dashed border-[var(--color-border)] px-4 py-2.5 last:border-none transition-colors hover:bg-[var(--color-bg-elev)]`}
           >
             <div className="flex items-center gap-2">
               <ChainIcon chain={r.chain} size={18} />
@@ -41,16 +41,16 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
             <div
               className={`text-[12px] uppercase tracking-[0.08em] ${
                 r.protocol === "MORPHO"
-                  ? "text-[var(--color-success)]"
+                  ? "text-[var(--color-ok)]"
                   : r.protocol === "KAMINO" || r.protocol === "JUPITER LEND"
-                    ? "text-[var(--color-recursion)]"
+                    ? "text-[var(--color-risk)]"
                     : "text-[var(--color-text)]"
               }`}
             >
               {r.protocol}
             </div>
             <div className="min-w-0">
-              <div className="truncate text-[13px] text-[var(--color-accent)]">
+              <div className="truncate text-[13px] text-[var(--color-text-ghost)]">
                 {r.vaultName ?? r.reserveSymbol}
               </div>
               {r.vaultName ? (
@@ -60,8 +60,8 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
               ) : null}
             </div>
             <div
-              className={`text-right text-[13px] ${
-                r.isAnomalyBorrow ? "text-[var(--color-recursion)]" : "text-[var(--color-text)]"
+              className={`text-right font-mono text-[13px] ${
+                r.isAnomalyBorrow ? "text-[var(--color-risk)]" : "text-[var(--color-text)]"
               }`}
             >
               {fmtUsd(r.ethenaSuppliedUsd)}
@@ -72,30 +72,30 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
                 style={{ width: `${Math.min(100, share * 100)}%` }}
                 aria-hidden
               />
-              <div className="relative px-2 py-0.5 text-right text-[13px] text-[var(--color-text)]">
+              <div className="relative px-2 py-0.5 text-right font-mono text-[13px] text-[var(--color-text)]">
                 {r.shareOfReserve !== undefined ? fmtPct(r.shareOfReserve) : "—"}
               </div>
             </div>
             <div className="text-right">
               {r.recursionScore !== undefined ? (
                 <>
-                  <div className="text-[13px] text-[var(--color-recursion)]">
+                  <div className="font-mono text-[13px] text-[var(--color-risk)]">
                     {fmtPct(r.recursionScore)}
                     {r.recursionApprox ? "*" : ""}
                   </div>
-                  <div className="text-[10px] text-[var(--color-text-ghost)]">
+                  <div className="font-mono text-[10px] text-[var(--color-text-ghost)]">
                     {fmtUsd(r.ethenaSuppliedUsd * r.recursionScore)}
                   </div>
                 </>
               ) : (
-                <span className="text-[13px] text-[var(--color-recursion)]">—</span>
+                <span className="font-mono text-[13px] text-[var(--color-risk)]">—</span>
               )}
             </div>
             <div className="flex justify-end">
               {r.isAnomalyBorrow ? (
-                <Tag variant="anomaly">Anomaly: borrow</Tag>
+                <Tag tone="risk">Anomaly: borrow</Tag>
               ) : (
-                <Tag variant="passive">Passive</Tag>
+                <Tag tone="ok">Passive</Tag>
               )}
             </div>
           </Link>

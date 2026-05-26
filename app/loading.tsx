@@ -8,19 +8,17 @@ export default function Loading() {
     <main>
       <Header />
       <section className="px-6 py-6">
-        <h1 className="mb-4 text-xl uppercase tracking-wider text-[var(--color-accent)]">
-          Ethena footprint
-        </h1>
+        <div className="mb-6 h-[120px] w-full animate-pulse rounded-[12px] bg-[color:rgba(255,255,255,0.04)]" />
         <div className="grid grid-cols-2 gap-2 md:grid-cols-3 lg:grid-cols-6">
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
-              className="h-[78px] animate-pulse rounded-md border border-[var(--color-border)] bg-[var(--color-bg-card)]"
+              className="h-[78px] animate-pulse rounded-[12px] border border-[var(--color-border)] bg-[color:rgba(255,255,255,0.04)]"
             />
           ))}
         </div>
-        <div className="mt-6 h-[340px] animate-pulse rounded-md border border-[var(--color-border)] bg-[var(--color-bg-card)]" />
-        <div className="mt-8 h-[300px] animate-pulse rounded-md border border-[var(--color-border)] bg-[var(--color-bg-card)]" />
+        <div className="mt-6 h-[340px] animate-pulse rounded-[12px] border border-[var(--color-border)] bg-[color:rgba(255,255,255,0.04)]" />
+        <div className="mt-8 h-[300px] animate-pulse rounded-[12px] border border-[var(--color-border)] bg-[color:rgba(255,255,255,0.04)]" />
       </section>
     </main>
   )

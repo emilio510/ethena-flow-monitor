@@ -10,21 +10,23 @@ type ChainKey =
 
 interface Meta {
   initial: string
-  bg: string
+  /** Full-saturation hue used for the foreground glyph. */
   fg: string
+  /** Softened background at ~0.15 opacity for the pill. */
+  bgSoft: string
 }
 
 const META: Record<ChainKey, Meta> = {
-  ethereum: { initial: "Ξ", bg: "#3c4ad7", fg: "#ffffff" },
-  base: { initial: "B", bg: "#0052ff", fg: "#ffffff" },
-  mantle: { initial: "M", bg: "#23272d", fg: "#ffffff" },
-  plasma: { initial: "P", bg: "#34d399", fg: "#0b0c0f" },
-  megaeth: { initial: "M", bg: "#cccccc", fg: "#0b0c0f" },
-  solana: { initial: "◎", bg: "#9945ff", fg: "#ffffff" },
-  xrpl: { initial: "✕", bg: "#23292f", fg: "#ffffff" },
+  ethereum: { initial: "Ξ", fg: "#3c4ad7", bgSoft: "rgba(60,74,215,0.15)" },
+  base: { initial: "B", fg: "#0052ff", bgSoft: "rgba(0,82,255,0.15)" },
+  mantle: { initial: "M", fg: "#8b9099", bgSoft: "rgba(35,39,45,0.15)" },
+  plasma: { initial: "P", fg: "#34d399", bgSoft: "rgba(52,211,153,0.15)" },
+  megaeth: { initial: "M", fg: "#cccccc", bgSoft: "rgba(204,204,204,0.15)" },
+  solana: { initial: "◎", fg: "#9945ff", bgSoft: "rgba(153,69,255,0.15)" },
+  xrpl: { initial: "✕", fg: "#8b9099", bgSoft: "rgba(35,41,47,0.15)" },
 }
 
-const FALLBACK: Meta = { initial: "?", bg: "#262932", fg: "#8b8d96" }
+const FALLBACK: Meta = { initial: "?", fg: "#8b8d96", bgSoft: "rgba(38,41,50,0.15)" }
 
 export function ChainIcon({
   chain,
@@ -40,7 +42,7 @@ export function ChainIcon({
       style={{
         width: size,
         height: size,
-        backgroundColor: meta.bg,
+        backgroundColor: meta.bgSoft,
         color: meta.fg,
         fontSize: Math.max(9, size * 0.5),
         lineHeight: 1,
