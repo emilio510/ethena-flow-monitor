@@ -28,7 +28,7 @@ export function FlowsTable({ flows, limit = DEFAULT_LIMIT }: { flows: Flow[]; li
   for (const f of flows) counts[f.classification]++
   const subtitle =
     flows.length === 0
-      ? "Outflows >= $1M, last 90 days"
+      ? "outflows >= $1M, last 90 days"
       : `showing ${shown.length} of ${flows.length} — ${counts.rebalance} rebalance, ${counts.redeem} redeem, ${counts.external} external`
 
   return (
@@ -53,8 +53,8 @@ export function FlowsTable({ flows, limit = DEFAULT_LIMIT }: { flows: Flow[]; li
               </tr>
             </thead>
             <tbody>
-              {shown.map((f) => (
-                <tr key={`${f.chain}-${f.txHash}-${f.to}-${f.asset}`} className="border-t border-[var(--color-border)]">
+              {shown.map((f, i) => (
+                <tr key={`${f.chain}-${f.txHash}-${f.to}-${f.asset}-${i}`} className="border-t border-[var(--color-border)]">
                   <td className="py-2 pr-4 font-mono text-[var(--color-text-ghost)]">{fmtDate(f.timestamp)}</td>
                   <td className="py-2 pr-4">{f.chain}</td>
                   <td className="py-2 pr-4 font-mono">{label(f.from)}</td>
