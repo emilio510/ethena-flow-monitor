@@ -19,6 +19,21 @@ describe("probeDestination — XRPL", () => {
     const h = await probeDestination("xrpl", "rDest")
     expect(h).toEqual({ chain: "xrpl", tokens: ["RLUSD"], trustLineCount: 1 })
   })
+
+  it("throws on a node-level XRPL error rather than reporting an empty wallet", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ result: { error: "actNotFound", error_message: "Account not found." } }),
+    })))
+    const { probeDestination } = await import("@/lib/flows/probe")
+    await expect(probeDestination("xrpl", "rGhost")).rejects.toThrow(/actNotFound|Account not found/)
+  })
+
+  it("throws on an HTTP error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 503, json: async () => ({}) })))
+    const { probeDestination } = await import("@/lib/flows/probe")
+    await expect(probeDestination("xrpl", "rDest")).rejects.toThrow(/HTTP 503/)
+  })
 })
 
 describe("probeDestination — EVM", () => {
@@ -34,5 +49,14 @@ describe("probeDestination — EVM", () => {
     const { probeDestination } = await import("@/lib/flows/probe")
     const h = await probeDestination("ethereum", "0xDEST")
     expect(h).toEqual({ chain: "ethereum", tokens: ["USDe"] })
+  })
+
+  it("throws on an Alchemy JSON-RPC error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ error: { message: "invalid api key" } }),
+    })))
+    const { probeDestination } = await import("@/lib/flows/probe")
+    await expect(probeDestination("ethereum", "0xDEST")).rejects.toThrow(/invalid api key/)
   })
 })

@@ -36,8 +36,19 @@ async function probeXrpl(address: string): Promise<DestHoldings> {
     signal: AbortSignal.timeout(TIMEOUT_MS),
   })
   if (!res.ok) throw new Error(`XRPL account_lines HTTP ${res.status}`)
-  const json = (await res.json()) as { result?: { lines?: XrplLine[]; error?: string } }
-  const lines = json.result?.lines ?? []
+  const json = (await res.json()) as {
+    result?: { lines?: XrplLine[]; error?: string; error_message?: string }
+  }
+  const result = json.result
+  // A node-level error (e.g. actNotFound) must throw, not masquerade as an
+  // empty wallet — otherwise the orchestrator can't tell "no holdings" from
+  // "lookup failed". Mirrors lib/onchain/xrpl.ts.
+  if (!result || result.error) {
+    throw new Error(
+      `XRPL account_lines error: ${result?.error_message ?? result?.error ?? "no result"}`,
+    )
+  }
+  const lines = result.lines ?? []
   return {
     chain: "xrpl",
     tokens: lines.map((l) => decodeXrplCurrency(l.currency)),
