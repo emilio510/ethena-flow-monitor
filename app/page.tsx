@@ -7,11 +7,14 @@ import { FootprintTable } from "@/components/footprint-table"
 import { TokenBalanceTable } from "@/components/token-balance-table"
 import { ReconciliationPanel } from "@/components/reconciliation-panel"
 import { MonitoredWalletsTable } from "@/components/monitored-wallets-table"
+import { FlowsTable } from "@/components/flows-table"
 import { buildReconciliation } from "@/lib/views/reconciliation"
+import { FlowsFileSchema } from "@/lib/flows/types"
 import { Tag } from "@/components/ui/tag"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import { custodialValue, fetchBackingAssets, totalBacking } from "@/lib/ethena"
 import type { BackingSnapshot } from "@/lib/ethena"
+import flowsData from "@/data/ethena-flows.json"
 
 // 5-min ISR: keeps the cache warm during traffic but lets a failed render
 // (e.g. a transient CF challenge that drops Ethena's API path) heal
@@ -50,6 +53,7 @@ function describeCause(cause: unknown): string {
 
 export default async function Page() {
   const renderedAt = Date.now()
+  const flows = FlowsFileSchema.parse(flowsData)
   // Fetch Ethena's snapshot first so loadFootprint can use it for Solana
   // attribution. Cheap (single edge-cached GET) — the rest fans out behind it.
   const ethenaSnapshot = await safeFetchBacking()
@@ -169,6 +173,9 @@ export default async function Page() {
         ) : null}
         <div className="mt-8">
           <MonitoredWalletsTable rows={walletInventory} />
+        </div>
+        <div className="mt-8">
+          <FlowsTable flows={flows} />
         </div>
       </section>
     </main>
