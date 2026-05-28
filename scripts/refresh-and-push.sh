@@ -42,5 +42,8 @@ fi
 
 git add data/
 git commit -m "chore: refresh ethena snapshot + flows ($(date -u +%Y-%m-%dT%H:%MZ))"
-git push
-echo "=== pushed — Vercel will redeploy ==="
+if git push; then
+  echo "=== pushed — Vercel will redeploy ==="
+else
+  echo "=== git push FAILED — commit is local; next run will retry ==="
+fi
