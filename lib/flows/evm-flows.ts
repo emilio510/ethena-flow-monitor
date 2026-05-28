@@ -74,8 +74,10 @@ export async function scanEvmFlows(wallets: string[], sinceUnix: number): Promis
       for (const t of transfers) {
         const timestamp = toUnix(t.metadata.blockTimestamp)
         if (Number.isNaN(timestamp) || timestamp < sinceUnix) continue
-        const amountUsd = t.value ?? 0
-        if (!(amountUsd >= FLOW_MIN_USD)) continue
+        // Drop transfers with no decoded USD value outright — never coerce a
+        // missing amount to 0 and let it slip through a threshold check.
+        if (t.value === null || !(t.value >= FLOW_MIN_USD)) continue
+        const amountUsd = t.value
         const symbol = STABLE_CONTRACTS[t.rawContract.address.toLowerCase()] ?? t.asset ?? "?"
         flows.push({
           chain: "ethereum",
@@ -87,6 +89,7 @@ export async function scanEvmFlows(wallets: string[], sinceUnix: number): Promis
           amountUsd,
         })
       }
+      // order: "desc" guarantees the last element of the page is the oldest.
       const oldest = transfers[transfers.length - 1]
       const oldestTs = oldest ? toUnix(oldest.metadata.blockTimestamp) : 0
       if (!next || transfers.length === 0 || oldestTs < sinceUnix) break

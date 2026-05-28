@@ -72,4 +72,9 @@ describe("scanEvmFlows", () => {
     const { scanEvmFlows } = await import("@/lib/flows/evm-flows")
     await expect(scanEvmFlows([WALLET], since)).rejects.toThrow(/invalid api key/)
   })
+  it("throws on an HTTP error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({ ok: false, status: 429, json: async () => ({}) })))
+    const { scanEvmFlows } = await import("@/lib/flows/evm-flows")
+    await expect(scanEvmFlows([WALLET], since)).rejects.toThrow(/HTTP 429/)
+  })
 })
