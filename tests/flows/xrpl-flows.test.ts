@@ -55,7 +55,7 @@ describe("scanXrplFlows", () => {
     expect(await scanXrplFlows([WALLET], since)).toHaveLength(0)
   })
   it("drops payments older than the window", async () => {
-    const oldRipple = since - RIPPLE_EPOCH_OFFSET - 86_400
+    const oldRipple = since - 86_400 - RIPPLE_EPOCH_OFFSET
     stubAccountTx({ [WALLET]: [payment({ from: WALLET, to: "rDEST", value: "5000000", rippleDate: oldRipple, hash: "H4" })] })
     const { scanXrplFlows } = await import("@/lib/flows/xrpl-flows")
     expect(await scanXrplFlows([WALLET], since)).toHaveLength(0)
@@ -67,5 +67,50 @@ describe("scanXrplFlows", () => {
     ] })
     const { scanXrplFlows } = await import("@/lib/flows/xrpl-flows")
     expect(await scanXrplFlows([WALLET], since)).toHaveLength(0)
+  })
+
+  it("follows the marker across pages until the window boundary", async () => {
+    let call = 0
+    vi.stubGlobal("fetch", vi.fn(async () => {
+      call++
+      if (call === 1) {
+        return { ok: true, status: 200, json: async () => ({ result: {
+          transactions: [payment({ from: WALLET, to: "rDEST", value: "5000000", rippleDate: RECENT_RIPPLE, hash: "P1" })],
+          marker: { ledger: 1, seq: 1 },
+        } }) }
+      }
+      // second page: an in-window large payment, then no marker → stop
+      return { ok: true, status: 200, json: async () => ({ result: {
+        transactions: [payment({ from: WALLET, to: "rDEST", value: "9000000", rippleDate: RECENT_RIPPLE, hash: "P2" })],
+      } }) }
+    }))
+    const { scanXrplFlows } = await import("@/lib/flows/xrpl-flows")
+    const flows = await scanXrplFlows([WALLET], since)
+    expect(call).toBe(2)
+    expect(flows.map((f) => f.txHash).sort()).toEqual(["P1", "P2"])
+  })
+
+  it("throws on an account_tx node error", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ result: { error: "actNotFound", error_message: "Account not found." } }),
+    })))
+    const { scanXrplFlows } = await import("@/lib/flows/xrpl-flows")
+    await expect(scanXrplFlows([WALLET], since)).rejects.toThrow(/actNotFound|Account not found/)
+  })
+
+  it("parses the tx_json item shape identically to tx", async () => {
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true, status: 200,
+      json: async () => ({ result: { transactions: [{
+        tx_json: { TransactionType: "Payment", Account: WALLET, Destination: "rDEST",
+          Amount: { currency: RLUSD_CURRENCY_HEX, issuer: RLUSD_ISSUER, value: "8000000" }, date: RECENT_RIPPLE },
+        hash: "JV1", meta: { TransactionResult: "tesSUCCESS" },
+      }] } }),
+    })))
+    const { scanXrplFlows } = await import("@/lib/flows/xrpl-flows")
+    const flows = await scanXrplFlows([WALLET], since)
+    expect(flows).toHaveLength(1)
+    expect(flows[0]).toMatchObject({ txHash: "JV1", amountUsd: 8_000_000 })
   })
 })
