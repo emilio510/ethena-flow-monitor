@@ -76,7 +76,7 @@ async function probeEvm(address: string): Promise<DestHoldings> {
   if (json.error) throw new Error(`Alchemy error: ${json.error.message}`)
   const balances = json.result?.tokenBalances ?? []
   const tokens = balances
-    .filter((b) => b.tokenBalance && BigInt(b.tokenBalance) > 0n)
+    .filter((b) => b.tokenBalance && BigInt(b.tokenBalance) > BigInt(0))
     .map((b) => STABLE_CONTRACTS[b.contractAddress.toLowerCase()])
     .filter((s): s is string => Boolean(s))
   return { chain: "ethereum", tokens }
