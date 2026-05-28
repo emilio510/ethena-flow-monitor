@@ -1,8 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { classifyFlow, classifyNewAddress, type DestHoldings } from "@/lib/flows/classify"
 import { buildKnownWalletSet, USDE_MINT_REDEEM } from "@/config/flows"
-import { RLUSD_ISSUER } from "@/config/xrpl"
-import { ETHENA_XRPL_WALLETS } from "@/config/xrpl"
+import { RLUSD_ISSUER, ETHENA_XRPL_WALLETS } from "@/config/xrpl"
 import type { RawFlow } from "@/lib/flows/types"
 
 const known = buildKnownWalletSet([])

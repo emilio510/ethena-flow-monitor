@@ -22,27 +22,37 @@ export interface ClassifyResult {
   reason: string
 }
 
-/** Token symbols that count as Ethena-family stables. */
-const ETHENA_STABLES = new Set(["RLUSD", "USDe", "sUSDe", "USDtb", "sUSDtb", "USDC", "USDT"])
+/** Stablecoins an Ethena custody wallet plausibly holds. Includes generic
+ *  USDC/USDT deliberately (v1 spec): a custody address often parks idle backing
+ *  in them. The presence of any token OUTSIDE this set is the disqualifier. */
+const CUSTODY_STABLES = new Set(["RLUSD", "USDe", "sUSDe", "USDtb", "sUSDtb", "USDC", "USDT"])
 
 /** Judge whether a never-before-seen destination looks like Ethena custody.
  *  Pure + testable; this is the domain-judgment seam. */
 export function classifyNewAddress(h: DestHoldings): DestProbe {
-  const onlyEthena = h.tokens.length > 0 && h.tokens.every((t) => ETHENA_STABLES.has(t))
-  if (!onlyEthena) {
+  if (h.tokens.length === 0) {
+    return { isProbableEthena: false, confidence: "low", reason: "destination holds no tokens" }
+  }
+  const onlyStables = h.tokens.every((t) => CUSTODY_STABLES.has(t))
+  if (!onlyStables) {
+    const foreign = h.tokens.filter((t) => !CUSTODY_STABLES.has(t))
     return {
       isProbableEthena: false,
       confidence: "low",
-      reason: `holds non-Ethena tokens: ${h.tokens.join(", ") || "none"}`,
+      reason: `holds non-stable tokens: ${foreign.join(", ")}`,
     }
   }
+  // v1: single-trustline XRPL is the only strong-confidence signal. A
+  // multi-trustline or EVM stables-only wallet is plausible-but-unconfirmed.
   if (h.chain === "xrpl" && h.trustLineCount === 1) {
     return { isProbableEthena: true, confidence: "high", reason: "single RLUSD trust line — Ethena-custody pattern" }
   }
-  return { isProbableEthena: true, confidence: "low", reason: `holds only Ethena stables (${h.tokens.join(", ")})` }
+  return { isProbableEthena: true, confidence: "low", reason: `holds only stablecoins (${h.tokens.join(", ")})` }
 }
 
-/** Classify one raw flow. `knownWallets` is normalized (EVM lowercase, XRPL as-is).
+/** Classify one raw flow. `knownWallets` is normalized (EVM lowercase, XRPL as-is);
+ *  XRPL addresses are case-sensitive base58, so `to` must arrive in canonical
+ *  form (the scanners emit the ledger's verbatim Destination, which is canonical).
  *  `probe` is the destination judgment, or null when the destination is a sink
  *  or already known (no probe needed). */
 export function classifyFlow(
