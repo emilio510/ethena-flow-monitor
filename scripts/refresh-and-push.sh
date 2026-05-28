@@ -1,11 +1,9 @@
 #!/bin/bash
 #
-# launchd entrypoint: refresh the committed Ethena snapshot and push.
-#
-# Ethena's API is behind Cloudflare anti-bot that challenges datacenter
-# egress (Vercel, GitHub Actions) — only a residential IP gets through.
-# So the refresh runs here, on this Mac, driven by the launchd agent at
-# ~/Library/LaunchAgents/com.ethena-flow.refresh.plist.
+# launchd entrypoint: refresh the committed Ethena snapshot AND flows ledger,
+# then push. The snapshot fetch hits Ethena's Cloudflare-gated API (residential
+# IP only); the flows scan hits public on-chain RPCs. The two are independent —
+# one failing must not block or clobber the other.
 #
 # Install / reinstall:
 #   cp scripts/com.ethena-flow.refresh.plist ~/Library/LaunchAgents/
@@ -14,26 +12,35 @@
 #
 # Run once by hand:  bash scripts/refresh-and-push.sh
 
-set -euo pipefail
+set -uo pipefail
 
-# launchd runs with a minimal environment — set PATH explicitly so the
-# homebrew node and system git resolve.
 export PATH="/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin"
-
-# Repo root = parent of this script's directory (portable, no hardcoded path).
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$REPO"
 
-echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) ethena snapshot refresh ==="
+echo "=== $(date -u +%Y-%m-%dT%H:%M:%SZ) ethena refresh ==="
 
-node --experimental-strip-types scripts/refresh-ethena-snapshot.ts
+# Step 1: backing snapshot (Ethena API). Non-fatal on failure.
+if node --experimental-strip-types scripts/refresh-ethena-snapshot.ts; then
+  echo "snapshot: ok"
+else
+  echo "snapshot: FAILED (Cloudflare/network) — keeping previous data"
+fi
 
+# Step 2: flows ledger (on-chain RPCs). Non-fatal on failure.
+if npx tsx --env-file=.env.local scripts/refresh-flows.ts; then
+  echo "flows: ok"
+else
+  echo "flows: FAILED — keeping previous data"
+fi
+
+# Commit whatever changed across both steps.
 if git diff --quiet -- data/; then
-  echo "data/ unchanged — Ethena snapshot is identical, nothing to push."
+  echo "data/ unchanged — nothing to push."
   exit 0
 fi
 
 git add data/
-git commit -m "chore: refresh ethena snapshot ($(date -u +%Y-%m-%dT%H:%MZ))"
+git commit -m "chore: refresh ethena snapshot + flows ($(date -u +%Y-%m-%dT%H:%MZ))"
 git push
 echo "=== pushed — Vercel will redeploy ==="

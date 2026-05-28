@@ -12,7 +12,8 @@
     "start": "next start",
     "lint": "next lint",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "refresh:flows": "tsx --env-file=.env.local scripts/refresh-flows.ts"
   },
   "dependencies": {
     "next": "16.2.4",

@@ -18,4 +18,8 @@ export const RLUSD_CURRENCY_HEX = "524C555344000000000000000000000000000000"
 export const ETHENA_XRPL_WALLETS = [
   "r4vFWRRZBXsWipgCLJBs6EqnMh7MRHbhyp",
   "rp1edBgyjbAsjXXHrhGtGUK2v6D6XhMTwc",
+  // Confirmed 2026-05-26: received the ~150M RLUSD rebalance from the two
+  // wallets above (80M and 70M respectively). Single RLUSD trust line each.
+  "rfxRtJ3apsuJs5TauCHCZB7ab4C1WvoBs",
+  "rL287GiGdF4BBnEwTBpGgduZt2KnEkAFX",
 ] as const

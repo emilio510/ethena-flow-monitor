@@ -36,7 +36,7 @@ describe("getEthenaRlusdHoldings", () => {
     const { getEthenaRlusdHoldings } = await import("@/lib/onchain/xrpl")
     const r = await getEthenaRlusdHoldings()
     expect(r.totalUsd).toBe(299_999_000)
-    expect(r.wallets).toHaveLength(2)
+    expect(r.wallets).toHaveLength(4)
   })
 
   it("ignores trust lines from other issuers or currencies", async () => {
