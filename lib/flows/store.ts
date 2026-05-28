@@ -32,6 +32,8 @@ export function promoteWallets(
     if (f.classification !== "rebalance" || f.confidence !== "high") continue
     const norm = f.chain === "ethereum" ? f.to.toLowerCase() : f.to
     if (knownWallets.has(norm)) continue
+    // XRPL addresses are case-sensitive; lowercasing here is safe only because
+    // it is a within-run dedup guard and never the stored `address` value.
     const key = `${f.chain}:${f.to.toLowerCase()}`
     if (have.has(key)) continue
     have.add(key)
