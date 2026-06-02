@@ -76,7 +76,10 @@ const MarketState = z
 
 const Allocation = z.object({
   market: z.object({
-    uniqueKey: z.string(),
+    // Morpho renamed `uniqueKey` → `marketId` in their GraphQL schema; we
+    // surface it internally as marketUniqueKey for backward-compat across
+    // call sites (footprint, reserve dedup, vault drilldown).
+    marketId: z.string(),
     collateralAsset: z.object({ symbol: z.string() }).nullable(),
     loanAsset: z.object({ symbol: z.string() }).nullable(),
     state: MarketState,
@@ -105,7 +108,7 @@ const VaultResponse = z.object({
 // resolution; per-wallet queries stay on the leaner UserResponse.
 const MarketPositionItem = z.object({
   market: z.object({
-    uniqueKey: z.string(),
+    marketId: z.string(),
     collateralAsset: z.object({ symbol: z.string() }).nullable(),
     loanAsset: z.object({ symbol: z.string() }).nullable(),
     state: MarketState,
@@ -197,7 +200,7 @@ query AdapterUser($address: String!, $chainId: Int!) {
     }
     marketPositions {
       market {
-        uniqueKey
+        marketId
         collateralAsset { symbol }
         loanAsset { symbol }
         state { supplyAssetsUsd borrowAssetsUsd }
@@ -217,7 +220,7 @@ query MorphoVault($address: String!, $chainId: Int!) {
       totalAssetsUsd
       allocation {
         market {
-          uniqueKey
+          marketId
           collateralAsset { symbol }
           loanAsset { symbol }
           state { supplyAssetsUsd borrowAssetsUsd }
@@ -331,7 +334,7 @@ async function getMorphoVaultV1(
     assetSymbol: v.asset.symbol,
     totalAssetsUsd: v.state.totalAssetsUsd ?? 0,
     allocation: v.state.allocation.map((a) => ({
-      marketUniqueKey: a.market.uniqueKey,
+      marketUniqueKey: a.market.marketId,
       collateralSymbol: a.market.collateralAsset?.symbol ?? null,
       loanSymbol: a.market.loanAsset?.symbol ?? null,
       supplyAssetsUsd: a.supplyAssetsUsd ?? 0,
@@ -463,7 +466,7 @@ async function resolveV2Adapter(
       )
     }
     return positions.map((mp) => ({
-      marketUniqueKey: mp.market.uniqueKey,
+      marketUniqueKey: mp.market.marketId,
       collateralSymbol: mp.market.collateralAsset?.symbol ?? null,
       loanSymbol: mp.market.loanAsset?.symbol ?? null,
       supplyAssetsUsd: (mp.state?.supplyAssetsUsd ?? 0) * scale,
