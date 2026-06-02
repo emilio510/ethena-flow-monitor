@@ -42,4 +42,42 @@ describe("getMarketAggregates", () => {
     expect(r.size).toBe(1)
     expect(r.get(aggregateKey("plasma-core-v3", "0xAAA"))?.deposits).toBe(1_000_000)
   })
+
+  it("converts non-stable reserves from tokens to USD via reserve_price", async () => {
+    // The /v1/aave/markets/latest endpoint returns deposits/borrows in token
+    // units with reserve_price separately — for stables this looks correct
+    // because price ≈ 1, but for wstETH at ~$2500 the unmultiplied value
+    // under-reports by ~2500×, which is the bug this assertion guards.
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({
+          data: [
+            {
+              protocol: "aave_v3",
+              market_key: "megaeth-core-v3",
+              reserve_address: "0xBBB",
+              reserve_symbol: "wstETH",
+              deposits: 10, // 10 wstETH tokens
+              borrows: 4, // 4 wstETH borrowed
+              available_liquidity: 6,
+              borrow_capacity: 8,
+              utilization: 0.4,
+              borrow_apy: 0.05,
+              supply_apy: 0.02,
+              reserve_price: 2500, // $/wstETH
+            },
+          ],
+        }),
+      }),
+    )
+    const { getMarketAggregates, aggregateKey } = await import("@/lib/tokenlogic/markets")
+    const r = await getMarketAggregates()
+    const row = r.get(aggregateKey("megaeth-core-v3", "0xBBB"))
+    expect(row?.deposits).toBe(25_000) // 10 × 2500
+    expect(row?.borrows).toBe(10_000) // 4 × 2500
+    expect(row?.available_liquidity).toBe(15_000) // 6 × 2500
+  })
 })

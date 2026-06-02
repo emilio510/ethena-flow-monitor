@@ -38,8 +38,30 @@ export function aggregateKey(marketKey: string, reserveAddress: string): string 
   return `${marketKey}:${reserveAddress.toLowerCase()}`
 }
 
+/**
+ * Convert a raw row to one with `deposits`/`borrows`/`available_liquidity`
+ * denominated in USD. The /v1/aave/markets/latest endpoint returns these
+ * fields in token units alongside a `reserve_price` (USD/token); for stables
+ * price ≈ 1 so the unconverted value happens to look right, but for any
+ * other reserve (wstETH, WETH, BTC, etc.) the raw number under-reports by
+ * the token's USD price. Downstream callers (reserve view, recursion,
+ * reconciliation) all assume USD, so the conversion belongs at this boundary.
+ */
+function toUsdRow(r: MarketReserve): MarketReserve {
+  const p = r.reserve_price
+  return {
+    ...r,
+    deposits: r.deposits * p,
+    borrows: r.borrows * p,
+    available_liquidity: r.available_liquidity * p,
+    borrow_capacity: r.borrow_capacity * p,
+  }
+}
+
 export async function getMarketAggregates(): Promise<Map<string, MarketReserve>> {
   const raw = await tlFetch("/v1/aave/markets/latest")
   const parsed = Response.parse(raw)
-  return new Map(parsed.data.map((r) => [aggregateKey(r.market_key, r.reserve_address), r]))
+  return new Map(
+    parsed.data.map((r) => [aggregateKey(r.market_key, r.reserve_address), toUsdRow(r)]),
+  )
 }
