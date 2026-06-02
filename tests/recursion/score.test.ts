@@ -49,6 +49,45 @@ describe("computeReserveRecursion", () => {
     expect(result.borrowsByCollateral.get("USDe")).toBeCloseTo(179_000_000)
   })
 
+  it("folds Morpho markets matching the reserve into borrowsByCollateral and the share denominator", () => {
+    // USDtb reserve: zero Aave activity, but a Steakhouse-style Morpho vault
+    // has $108M of USDtb borrowed against sUSDe collateral. The reserve view
+    // must surface that sUSDe collateral wedge AND raise the denominator so
+    // the Ethena-stack share isn't computed against an Aave-only base.
+    const result = computeReserveRecursion({
+      reserveSymbol: "USDtb",
+      marketKey: "ethereum-core-v3",
+      rows: [],
+      aggregateDeposits: 0,
+      aggregateBorrows: 0,
+      ethenaSupplyByUser: new Map(),
+      morphoMarkets: [
+        { collateralSymbol: "sUSDe", marketBorrowUsd: 108_000_000 },
+      ],
+    })
+    expect(result.borrowsByCollateral.get("sUSDe")).toBeCloseTo(108_000_000)
+    expect(result.attributedBorrowsTotal).toBeCloseTo(108_000_000)
+    expect(result.ethenaCollateralBorrowShare).toBeCloseTo(1)
+  })
+
+  it("a Morpho market with non-Ethena-stack collateral grows the donut but not the Ethena share", () => {
+    const result = computeReserveRecursion({
+      reserveSymbol: "USDtb",
+      marketKey: "ethereum-core-v3",
+      rows: [],
+      aggregateDeposits: 0,
+      aggregateBorrows: 0,
+      ethenaSupplyByUser: new Map(),
+      morphoMarkets: [
+        { collateralSymbol: "sUSDe", marketBorrowUsd: 50_000_000 },
+        { collateralSymbol: "WETH", marketBorrowUsd: 50_000_000 },
+      ],
+    })
+    expect(result.borrowsByCollateral.get("sUSDe")).toBeCloseTo(50_000_000)
+    expect(result.borrowsByCollateral.get("WETH")).toBeCloseTo(50_000_000)
+    expect(result.ethenaCollateralBorrowShare).toBeCloseTo(0.5)
+  })
+
   it("returns score 0 when no recursive borrows", () => {
     const result = computeReserveRecursion({
       reserveSymbol: "USDC",

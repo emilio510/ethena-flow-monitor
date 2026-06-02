@@ -2,7 +2,16 @@ import { getMarketPositions, getEthenaPositions } from "@/lib/tokenlogic/positio
 import { getMarketAggregates } from "@/lib/tokenlogic/markets"
 import { isEthenaWallet } from "@/config/wallets"
 import { marketKeyForChain, type Chain } from "@/config/markets"
-import { computeReserveRecursion, type ReserveRecursion } from "@/lib/recursion/score"
+import {
+  computeReserveRecursion,
+  type ReserveRecursion,
+  type MorphoReserveMarket,
+} from "@/lib/recursion/score"
+import {
+  getEthenaMorphoPositions,
+  getMorphoVaultsBulk,
+  MORPHO_CHAINS,
+} from "@/lib/morpho/positions"
 
 export class ReserveNotFoundError extends Error {
   constructor(public marketKey: string, public reserveSymbol: string) {
@@ -163,6 +172,14 @@ export async function loadReserveView(
   // the recursion calculation so a self-borrow doesn't inflate its own score.
   const nonEthenaRows = marketRows.filter((r) => !isEthenaWallet(r.userAddress))
 
+  // Cross-protocol: fold in any Morpho markets that borrow this reserve's
+  // asset, so the by-collateral donut and the Ethena-stack share reflect
+  // Morpho-side leverage (e.g. Steakhouse Ethena USDtb's $108M of sUSDe→USDtb)
+  // instead of hiding it. Fetched only for chains Morpho actually deploys to.
+  const morphoMarkets = MORPHO_CHAINS.some((c) => c.chain === chain)
+    ? await collectMorphoMarketsForReserve(chain, reserveSymbol)
+    : []
+
   const recursion = computeReserveRecursion({
     reserveSymbol,
     marketKey,
@@ -170,6 +187,7 @@ export async function loadReserveView(
     aggregateDeposits: aggregate.deposits,
     aggregateBorrows: aggregate.borrows,
     ethenaSupplyByUser,
+    morphoMarkets,
   })
 
   const freshness = marketRows
@@ -195,5 +213,55 @@ export async function loadReserveView(
     recursion,
     freshness,
     recursionApprox: truncated,
+  }
+}
+
+/**
+ * Collect Morpho Blue markets whose loan asset matches `reserveSymbol` on
+ * the given chain, deduped by collateral/loan pair so the same Blue market
+ * supplied by multiple Ethena vaults contributes its market-wide borrow once.
+ *
+ * Best-effort: if Morpho's API is unreachable the reserve view degrades to
+ * Aave-only rather than throwing — the caller's recursion donut is still
+ * meaningful, just under-reports Morpho's contribution until the next render.
+ */
+async function collectMorphoMarketsForReserve(
+  chain: Chain,
+  reserveSymbol: string,
+): Promise<MorphoReserveMarket[]> {
+  try {
+    const { positions } = await getEthenaMorphoPositions()
+    const refs = positions
+      .filter((p) => p.chain === chain)
+      .map((p) => ({
+        address: p.vaultAddress,
+        chain: p.chain,
+        chainId: p.chain === "ethereum" ? 1 : 8453,
+        version: p.vaultVersion,
+      }))
+    if (refs.length === 0) return []
+    const details = await getMorphoVaultsBulk(refs)
+    const seen = new Set<string>()
+    const out: MorphoReserveMarket[] = []
+    for (const vault of details.values()) {
+      for (const a of vault.allocation) {
+        if (a.loanSymbol !== reserveSymbol) continue
+        if (a.marketBorrowUsd <= 0) continue
+        const key = `${a.collateralSymbol ?? ""}|${a.loanSymbol ?? ""}|${a.marketUniqueKey}`
+        if (seen.has(key)) continue
+        seen.add(key)
+        out.push({
+          collateralSymbol: a.collateralSymbol,
+          marketBorrowUsd: a.marketBorrowUsd,
+        })
+      }
+    }
+    return out
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err)
+    console.warn(
+      `[ethena-flow-monitor] morpho cross-protocol fetch failed for ${chain}/${reserveSymbol}: ${reason}`,
+    )
+    return []
   }
 }

@@ -16,6 +16,14 @@ export interface ReserveRecursion {
   attributedBorrowsTotal: number
 }
 
+/** A Morpho Blue market borrowing the reserve's asset, as seen from the
+ *  reserve view. Caller dedupes by market and passes the market-wide borrow
+ *  (not just the share of the vault that supplies into it). */
+export interface MorphoReserveMarket {
+  collateralSymbol: string | null
+  marketBorrowUsd: number
+}
+
 export interface ReserveRecursionInput {
   reserveSymbol: string
   marketKey: string
@@ -23,6 +31,11 @@ export interface ReserveRecursionInput {
   aggregateDeposits: number
   aggregateBorrows: number
   ethenaSupplyByUser: Map<string, number>
+  /** Optional cross-protocol view: Morpho markets whose loan asset is this
+   *  reserve's symbol. Their borrows are folded into the by-collateral
+   *  donut and into the Ethena-stack share's denominator so the reserve view
+   *  no longer hides the Morpho-side leverage. */
+  morphoMarkets?: MorphoReserveMarket[]
 }
 
 const clamp = (n: number) => Math.max(0, Math.min(1, n))
@@ -51,9 +64,25 @@ export function computeReserveRecursion(input: ReserveRecursionInput): ReserveRe
     }
   }
 
+  // Fold in any Morpho markets borrowing this reserve's asset. The donut and
+  // the Ethena-stack share both account for these so the reserve view reflects
+  // cross-protocol leverage, not just Aave's slice.
+  let morphoBorrowsTotal = 0
+  for (const mm of input.morphoMarkets ?? []) {
+    if (mm.marketBorrowUsd <= 0) continue
+    morphoBorrowsTotal += mm.marketBorrowUsd
+    attributedBorrowsTotal += mm.marketBorrowUsd
+    const col = mm.collateralSymbol ?? "Unknown"
+    borrowsByCollateral.set(col, (borrowsByCollateral.get(col) ?? 0) + mm.marketBorrowUsd)
+    if (mm.collateralSymbol && isEthenaStack(classify(mm.collateralSymbol))) {
+      ethenaStackBorrowed += mm.marketBorrowUsd
+    }
+  }
+
+  const totalBorrowsConsidered = input.aggregateBorrows + morphoBorrowsTotal
   const ethenaCollateralBorrowShare =
-    input.aggregateBorrows > 0
-      ? clamp(ethenaStackBorrowed / input.aggregateBorrows)
+    totalBorrowsConsidered > 0
+      ? clamp(ethenaStackBorrowed / totalBorrowsConsidered)
       : 0
 
   return {
