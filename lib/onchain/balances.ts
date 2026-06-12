@@ -19,6 +19,9 @@ export interface IdleBalanceRow {
   /** Whether this row aggregates an ERC4626 vault (sUSDe, sUSDtb), so the UI
    *  can footnote the "underlying-asset equivalent" caveat. */
   isErc4626: boolean
+  /** True when the USD value used a proxy / approximate price (e.g. an RWA
+   *  token priced via its EVM twin). Lets the UI footnote it. */
+  approx?: boolean
 }
 
 export interface IdleBalanceResult {
