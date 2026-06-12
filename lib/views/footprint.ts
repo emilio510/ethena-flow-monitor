@@ -11,7 +11,7 @@ import {
   type MorphoVaultDetail,
   type EthenaMorphoResult,
 } from "@/lib/morpho/positions"
-import { getEthenaIdleBalances, type IdleBalanceResult } from "@/lib/onchain/balances"
+import { getEthenaIdleBalances, type IdleBalanceResult, type IdleBalanceRow } from "@/lib/onchain/balances"
 import { getEthenaRlusdHoldings, type XrplRlusdResult } from "@/lib/onchain/xrpl"
 import {
   ETHENA_WALLETS,
@@ -22,6 +22,8 @@ import {
 import { computeReserveRecursion } from "@/lib/recursion/score"
 import { classify, isEthenaStack } from "@/lib/recursion/classify"
 import { getEthenaSolanaPositions } from "@/lib/solana"
+import { getEthenaSolanaIdleBalances } from "@/lib/solana/balances"
+import { SOLANA_WALLETS, KNOWN_SOLANA_WALLET_LABELS } from "@/config/solana-wallets"
 import { flattenWallets, type BackingSnapshot } from "@/lib/ethena"
 
 export type Protocol = "AAVE V3" | "MORPHO" | "KAMINO" | "JUPITER LEND"
@@ -77,6 +79,9 @@ export interface FootprintResult {
   /** Solana protocols that returned an error (e.g. ["kamino"]). Empty
    *  array when no snapshot was passed or both succeeded. */
   failedSolana: string[]
+  /** Sources that errored while reading Solana balances (RPC / price).
+   *  Empty when all succeeded. */
+  failedSolanaBalances: string[]
   /** Per-wallet inventory — every monitored address + its $ holdings. */
   walletInventory: WalletInventoryRow[]
   weightedRecursion: number
@@ -139,6 +144,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     getEthenaMorphoPositions(),
     getEthenaIdleBalances(),
     getEthenaRlusdHoldings(),
+    getEthenaSolanaIdleBalances(),
   ])
 
   const safeUnwrap = <T>(idx: number, name: string, fallback: T): T => {
@@ -177,18 +183,29 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     totalUsd: 0,
     wallets: [],
   })
+  const solanaIdle = safeUnwrap(5, "getEthenaSolanaIdleBalances", {
+    rows: [],
+    totalUsd: 0,
+    walletTotalUsd: [],
+    failures: [],
+  } as import("@/lib/solana/balances").SolanaIdleResult)
+  const failedSolanaBalances = solanaIdle.failures.map((f) => f.source)
 
-  // RLUSD lives on the XRP Ledger as idle backing — fold it into the idle
-  // result so it counts toward total backing and the reconciliation.
+  // RLUSD (XRPL) and Solana idle-bucket balances are off-the-EVM-chain idle
+  // backing — fold them into the idle result so they count toward total
+  // backing and flow into the reconciliation by symbol. (Solana DEPLOYED-bucket
+  // holdings like jleUSDG are deliberately NOT here — they live in the wallet
+  // inventory only, see below, to avoid double-counting the Jupiter row.)
+  const extraRows: IdleBalanceRow[] = [...solanaIdle.rows]
+  if (rlusd.totalUsd > 0) {
+    extraRows.push({ symbol: "RLUSD", totalUsd: rlusd.totalUsd, isErc4626: false })
+  }
   const idle: IdleBalanceResult =
-    rlusd.totalUsd > 0
+    extraRows.length > 0
       ? {
           ...idleRaw,
-          rows: [
-            ...idleRaw.rows,
-            { symbol: "RLUSD", totalUsd: rlusd.totalUsd, isErc4626: false },
-          ].sort((a, b) => b.totalUsd - a.totalUsd),
-          totalUsd: idleRaw.totalUsd + rlusd.totalUsd,
+          rows: [...idleRaw.rows, ...extraRows].sort((a, b) => b.totalUsd - a.totalUsd),
+          totalUsd: idleRaw.totalUsd + extraRows.reduce((a, r) => a + r.totalUsd, 0),
         }
       : idleRaw
 
@@ -437,20 +454,23 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     for (const [addr, e] of ctx) {
       apiLabels.set(addr, e.cps.size > 0 ? [...e.cps].join(", ") : [...e.strategies].join(", "))
     }
-    const solByAddr = new Map<string, number>()
-    for (const f of flat) {
-      if (f.chainSlug !== "solana") continue
-      solByAddr.set(f.address, (solByAddr.get(f.address) ?? 0) + f.value)
-    }
-    for (const [address, totalUsd] of solByAddr) {
-      solanaWallets.push({
-        address,
-        chain: "solana",
-        role: "backing",
-        apiLabel: apiLabels.get(address),
-        totalUsd,
-      })
-    }
+  }
+
+  // Solana wallet inventory driven by on-chain totals from solanaIdle (which
+  // covers both idle-bucket and deployed-bucket holdings per wallet). apiLabel
+  // is derived from the snapshot when available; totalUsd is always on-chain.
+  const solTotalByAddr = new Map(
+    solanaIdle.walletTotalUsd.map((w) => [w.address, w.totalUsd]),
+  )
+  for (const address of SOLANA_WALLETS) {
+    solanaWallets.push({
+      address,
+      chain: "solana",
+      role: "backing",
+      apiLabel: apiLabels.get(address),
+      label: KNOWN_SOLANA_WALLET_LABELS[address],
+      totalUsd: solTotalByAddr.get(address) ?? 0,
+    })
   }
 
   const walletInventory: WalletInventoryRow[] = [
@@ -498,6 +518,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     failedMarkets,
     failedMorpho,
     failedSolana,
+    failedSolanaBalances,
     walletInventory,
     weightedRecursion,
     weightedRecursionApprox: weightedAnyApprox,
