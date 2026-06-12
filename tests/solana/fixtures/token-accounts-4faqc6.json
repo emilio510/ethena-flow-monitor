@@ -1,0 +1,56 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "context": { "slot": 425986897 },
+    "value": [
+      {
+        "pubkey": "Acc1111111111111111111111111111111111111111",
+        "account": {
+          "data": {
+            "parsed": {
+              "info": {
+                "isNative": false,
+                "mint": "AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG",
+                "owner": "4FaQc6QZ5skFjcDF64mKcXRhtCCsnArZcr1xumPNrbtN",
+                "tokenAmount": {
+                  "amount": "192821471943242",
+                  "decimals": 6,
+                  "uiAmount": 192821471.943242,
+                  "uiAmountString": "192821471.943242"
+                }
+              },
+              "type": "account"
+            },
+            "program": "spl-token-2022",
+            "space": 182
+          },
+          "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        }
+      },
+      {
+        "pubkey": "Acc2222222222222222222222222222222222222222",
+        "account": {
+          "data": {
+            "parsed": {
+              "info": {
+                "mint": "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH",
+                "owner": "4FaQc6QZ5skFjcDF64mKcXRhtCCsnArZcr1xumPNrbtN",
+                "tokenAmount": {
+                  "amount": "32741",
+                  "decimals": 6,
+                  "uiAmount": 0.032741,
+                  "uiAmountString": "0.032741"
+                }
+              },
+              "type": "account"
+            },
+            "program": "spl-token-2022",
+            "space": 182
+          },
+          "owner": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        }
+      }
+    ]
+  }
+}

@@ -8,14 +8,14 @@ const DEFAULT_HEADERS: HeadersInit = {
 }
 
 export class SolanaApiError extends Error {
-  constructor(public source: "kamino" | "fluid", public status: number, public path: string, public body: string) {
+  constructor(public source: "kamino" | "fluid" | "solana-rpc", public status: number, public path: string, public body: string) {
     super(`${source} API error ${status}`)
     this.name = "SolanaApiError"
   }
 }
 
 export class SolanaTimeoutError extends Error {
-  constructor(public source: "kamino" | "fluid", public path: string, public timeoutMs: number) {
+  constructor(public source: "kamino" | "fluid" | "solana-rpc", public path: string, public timeoutMs: number) {
     super(`${source} API timed out after ${timeoutMs}ms`)
     this.name = "SolanaTimeoutError"
   }
@@ -29,7 +29,7 @@ export async function fluidFetch<T = unknown>(path: string, timeoutMs = DEFAULT_
   return jsonFetch<T>("fluid", `https://api.solana.fluid.io${path}`, path, timeoutMs)
 }
 
-async function jsonFetch<T>(source: "kamino" | "fluid", url: string, path: string, timeoutMs: number): Promise<T> {
+async function jsonFetch<T>(source: "kamino" | "fluid" | "solana-rpc", url: string, path: string, timeoutMs: number): Promise<T> {
   let res: Response
   try {
     res = await fetch(url, {
