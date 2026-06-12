@@ -20,7 +20,7 @@ describe("getTokenBalancesByOwner", () => {
     const { getTokenBalancesByOwner } = await import("@/lib/solana/rpc")
     const balances = await getTokenBalancesByOwner("4FaQc6QZ5skFjcDF64mKcXRhtCCsnArZcr1xumPNrbtN")
     const jaaa = balances.find((b) => b.mint === "AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG")!
-    expect(jaaa.rawAmount).toBe(192821471943242n)
+    expect(jaaa.rawAmount).toBe(BigInt("192821471943242"))
     expect(jaaa.decimals).toBe(6)
   })
 
