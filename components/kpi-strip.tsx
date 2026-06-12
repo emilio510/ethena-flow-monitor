@@ -14,10 +14,6 @@ export function KpiStrip({
           ? "grid-cols-2 md:grid-cols-3"
           : "grid-cols-2"
   return (
-    <div
-      className={`grid grid-cols-2 gap-[1px] overflow-hidden rounded-[12px] border border-[var(--color-border)] bg-[var(--color-border)] ${cls}`}
-    >
-      {children}
-    </div>
+    <div className={`grid grid-cols-2 gap-3 ${cls}`}>{children}</div>
   )
 }

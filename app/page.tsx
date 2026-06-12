@@ -8,6 +8,7 @@ import { TokenBalanceTable } from "@/components/token-balance-table"
 import { ReconciliationPanel } from "@/components/reconciliation-panel"
 import { MonitoredWalletsTable } from "@/components/monitored-wallets-table"
 import { FlowsTable } from "@/components/flows-table"
+import { GlassCard } from "@/components/ui/glass-card"
 import { buildReconciliation } from "@/lib/views/reconciliation"
 import { FlowsFileSchema } from "@/lib/flows/types"
 import { Tag } from "@/components/ui/tag"
@@ -117,6 +118,7 @@ export default async function Page() {
             )}
           </div>
           <HeroMeter
+            refractive
             label="Recursive exposure"
             ratio={backingBase > 0 ? recursiveUsd / backingBase : 0}
             rightCaption={
@@ -145,34 +147,44 @@ export default async function Page() {
 
       <section className="px-6 pb-6">
         <div className="mt-6">
-          <FootprintTable rows={rows} />
+          <GlassCard refractive className="p-5">
+            <FootprintTable rows={rows} />
+          </GlassCard>
         </div>
         <div className="mt-8">
-          <TokenBalanceTable
-            rows={idle.rows}
-            total={idle.totalUsd}
-            title="Idle backing — not deployed in lending"
-            shareLabel="Share of Idle"
-          />
+          <GlassCard refractive className="p-5">
+            <TokenBalanceTable
+              rows={idle.rows}
+              total={idle.totalUsd}
+              title="Idle backing — not deployed in lending"
+              shareLabel="Share of Idle"
+            />
+          </GlassCard>
         </div>
         {idle.reserveFundRows.length > 0 ? (
           <div className="mt-8">
-            <TokenBalanceTable
-              rows={idle.reserveFundRows}
-              total={idle.reserveFundTotalUsd}
-              title="Reserve fund — insurance, excluded from backing"
-              shareLabel="Share of Fund"
-              note="Held in a dedicated wallet as a solvency backstop. Ethena's reported backing total excludes it, so the figures above do too — it is shown here for completeness only."
-            />
+            <GlassCard refractive className="p-5">
+              <TokenBalanceTable
+                rows={idle.reserveFundRows}
+                total={idle.reserveFundTotalUsd}
+                title="Reserve fund — insurance, excluded from backing"
+                shareLabel="Share of Fund"
+                note="Held in a dedicated wallet as a solvency backstop. Ethena's reported backing total excludes it, so the figures above do too — it is shown here for completeness only."
+              />
+            </GlassCard>
           </div>
         ) : null}
         {reconciliation ? (
           <div className="mt-8">
-            <ReconciliationPanel data={reconciliation} />
+            <GlassCard refractive className="p-5">
+              <ReconciliationPanel data={reconciliation} />
+            </GlassCard>
           </div>
         ) : null}
         <div className="mt-8">
-          <MonitoredWalletsTable rows={walletInventory} />
+          <GlassCard refractive className="p-5">
+            <MonitoredWalletsTable rows={walletInventory} />
+          </GlassCard>
         </div>
         <div className="mt-8">
           <FlowsTable flows={flows} />

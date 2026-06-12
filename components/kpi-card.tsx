@@ -1,3 +1,5 @@
+import { RefractiveGlass } from "@/components/ui/refractive-glass"
+
 type Tone = "default" | "recursion" | "accent"
 
 const VALUE_TONE: Record<Tone, string> = {
@@ -18,7 +20,7 @@ export function KpiCard({
   tone?: Tone
 }) {
   return (
-    <div className="bg-[var(--color-bg-elev)] px-4 py-3 efm-rise">
+    <RefractiveGlass className="px-4 py-3 efm-rise">
       <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-ghost)]">
         {label}
       </div>
@@ -28,6 +30,6 @@ export function KpiCard({
       {subValue && (
         <div className="mt-1 font-mono text-[10px] text-[var(--color-text-ghost)]">{subValue}</div>
       )}
-    </div>
+    </RefractiveGlass>
   )
 }

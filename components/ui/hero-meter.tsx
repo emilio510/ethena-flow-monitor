@@ -1,4 +1,5 @@
 import { GlassCard } from "@/components/ui/glass-card"
+import { RefractiveGlass } from "@/components/ui/refractive-glass"
 
 const DEFAULT_THRESHOLD = 0.2
 
@@ -7,6 +8,7 @@ export function HeroMeter({
   ratio,
   rightCaption,
   threshold = DEFAULT_THRESHOLD,
+  refractive = false,
 }: {
   label: string
   /** 0..1 fraction -- drives bar fill and value display. */
@@ -15,6 +17,8 @@ export function HeroMeter({
   rightCaption: React.ReactNode
   /** Pulse the value above this fraction. */
   threshold?: number
+  /** Opt this hero into the refractive-glass prototype (still gated by ?glass=refractive). */
+  refractive?: boolean
 }) {
   const pct = ratio * 100
   const fillPct = Math.min(100, Math.max(0, pct))
@@ -30,8 +34,8 @@ export function HeroMeter({
   const fillAnimation = pulse
     ? "efm-fill var(--dur-meter) var(--ease-out) 400ms forwards, efm-glow-pulse 3s ease-in-out 1.5s infinite"
     : "efm-fill var(--dur-meter) var(--ease-out) 400ms forwards"
-  return (
-    <GlassCard className="flex flex-col justify-between p-[18px]">
+  const content = (
+    <>
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-ghost)]">
@@ -63,6 +67,22 @@ export function HeroMeter({
           }}
         />
       </div>
-    </GlassCard>
+    </>
+  )
+
+  // Context-aware: this is the risk metric, so the refractive glass reads red, not cyan.
+  if (refractive) {
+    return (
+      <RefractiveGlass
+        className="flex flex-col justify-between p-[18px]"
+        accent="#ff453a"
+        accentStrength={0.75}
+      >
+        {content}
+      </RefractiveGlass>
+    )
+  }
+  return (
+    <GlassCard className="flex flex-col justify-between p-[18px]">{content}</GlassCard>
   )
 }
