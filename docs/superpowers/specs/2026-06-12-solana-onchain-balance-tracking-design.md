@@ -36,9 +36,44 @@ Scope is reconciliation + monitored-wallet inventory. **No new UI page.**
    dependency** (no `@solana/web3.js`) — matches the house style (Kamino/Fluid/
    Ethena are all raw `fetch`). The pasted Solana key is the **same** value as
    the existing `ALCHEMY_KEY`, so this is a path swap with **no new env var**.
-2. **Valuation:** stables (USDG, PYUSD, USDC, USDe) hard-pegged 1:1; non-stable
-   tokens (JAAA, and any future ones) priced via the **Jupiter price API**
-   (`lite-api.jup.ag/price`). Fully independent of Ethena's snapshot.
+2. **Valuation (amended twice after reconnaissance — see below):**
+   - Stables (USDG, PYUSD, USDC, USDe) hard-pegged 1:1.
+   - **JAAA priced via the Alchemy Prices API using its Base (EVM) contract** as
+     the price proxy: `0x5a0f93d040de44e78f251b03c43be9cf317dcf64` on
+     `base-mainnet` → $1.03757 (live). JAAA is the Janus Henderson Anemoy AAA
+     CLO fund, tokenized on both Base and Solana at the same NAV; it has a
+     market price on Base but none on Solana (Jupiter returns `{}`).
+   - **No Jupiter dependency.** After excluding vault-shares and dust, the only
+     valued tokens at these two addresses are stables (peg) + JAAA (Alchemy
+     proxy price), so the Jupiter price API is not needed.
+
+## Reconnaissance findings (2026-06-12, live Alchemy + Jupiter)
+
+Actual on-chain holdings (`getTokenAccountsByOwner`, both token programs):
+
+| Owner | Mint | Amount | Identity |
+|---|---|---|---|
+| `C23FGx…` | `Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc` | 250,930,298 (6 dp) | **jleUSDG vault-share token** (= `JUPITER_ETHENA_LENDING_VAULT` in `lib/solana/fluid.ts`). Represents the Jupiter Lend position **already counted** by `buildJupiterRow`. |
+| `C23FGx…` | `2u1tsz…` | 0.35 | dust stable |
+| `4FaQc6…` | `AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG` | 192,821,471.94 (6 dp) | **JAAA** — RWA, held directly, **never counted today**. |
+| `4FaQc6…` | `EPjFWdd5…` (USDC) | 0.0029 | dust |
+| `4FaQc6…` | `2u1tsz…` | 0.03 | dust |
+
+**Consequences:**
+
+- The two addresses are **not symmetric**. `4FaQc6` adds ~$193M of
+  never-counted JAAA. `C23FGx`'s real holding is the **jleUSDG vault-share
+  token** — the position is already in the footprint, so it must be **excluded**
+  (allowlist registry never lists it) or it double-counts ~$251M.
+- **JAAA price (resolved):** JAAA is the same fund on Base and Solana. Its Base
+  contract `0x5a0f93d040de44e78f251b03c43be9cf317dcf64` (decimals 6, "Janus
+  Henderson Anemoy AAA CLO Fund Token") is **not** ERC4626 (no `convertToAssets`),
+  but the **Alchemy Prices API** prices it at **$1.03757** (2026-06-12, live).
+  This matches the snapshot-implied ~$1.036. Use that price for the Solana JAAA
+  amount. Ethena also holds ~48.2M JAAA on Base at `0x2d4d2a…7bb4` (the snapshot's
+  second JAAA entry, ~$49.94M) — out of scope here, but the same price applies.
+- The reconciliation tolerance is `max($10M, 3% × ethenaUsd)` ≈ $6M on JAAA;
+  the live Alchemy price lands the on-chain figure within tolerance → verified.
 
 ## Correctness invariants
 
@@ -67,23 +102,37 @@ Scope is reconciliation + monitored-wallet inventory. **No new UI page.**
     DeFi omnibus (Sentora/Bitwise)", `4FaQc6…` → "RWA — JAAA (Securitize)".
   - `isSolanaWallet(addr)` helper.
 - **`config/solana-idle-tokens.ts`**
-  - `SolanaIdleToken { symbol; mint; decimals; peg?: 1 }`.
-  - `SOLANA_IDLE_TOKENS` keyed by mint: USDG, PYUSD, USDC, USDe, sUSDe (`peg: 1`)
-    + JAAA (priced). JAAA's mint is discovered at impl time by querying the
-    wallet's token accounts. Excludes vault-share mints (see invariant).
+  - `SolanaIdleToken { symbol; mint; decimals; pricing }` where `pricing` is a
+    discriminated union: `{ kind: "peg" }` (hard $1), or `{ kind: "proxyPrice";
+    network: string; address: string; approx?: boolean }` (price this token via
+    a reference EVM contract through the Alchemy Prices API).
+  - `SOLANA_IDLE_TOKENS` is an **allowlist** keyed by mint: USDG/PYUSD/USDC/USDe
+    (`peg`); JAAA (`proxyPrice` → `base-mainnet` /
+    `0x5a0f93d040de44e78f251b03c43be9cf317dcf64`, `approx: true`). Mints not
+    listed are ignored — so vault-share mints are excluded by construction.
+  - `EXCLUDED_MINTS: Record<string,string>` — documents *why* specific mints are
+    deliberately kept out (e.g. `Bd2wJsmaF3YKC6f…` → "jleUSDG vault share —
+    already counted by buildJupiterRow; valuing here double-counts"). Defensive
+    documentation; the allowlist already excludes them.
 - **`lib/solana/rpc.ts`** — Solana JSON-RPC helper. `getTokenAccountsByOwner`
   (`encoding: jsonParsed`) per (owner, programId) across both token programs.
   Reuses `SolanaApiError` / `SolanaTimeoutError` from `lib/solana/client.ts`.
   `server-only`.
-- **`lib/solana/prices.ts`** — Jupiter price client. `fetchSolanaPrices(mints)`
-  → zod-validated `Map<mint, number>`. Stables short-circuit to 1:1 before any
-  network call. `server-only`.
+- **`lib/onchain/prices.ts`** — Alchemy Prices API client (chain-agnostic, also
+  reusable for EVM later). `fetchTokenPrices([{network, address}])` → POST
+  `https://api.g.alchemy.com/prices/v1/${ALCHEMY_KEY}/tokens/by-address`,
+  zod-validated → `Map<"network:address", number>` (response:
+  `data[].prices[].value` as a string → `Number`). `server-only`.
 - **`lib/solana/balances.ts`** — `getEthenaSolanaIdleBalances()`:
   1. For each `SOLANA_WALLETS` entry, fetch token accounts across both programs.
-  2. Filter to `SOLANA_IDLE_TOKENS`; sum raw amount per mint.
-  3. Value: stable → `amount × 1`; else `amount × jupiterPrice(mint)`; missing
-     price → exclude + record failure.
-  4. Aggregate per symbol → `IdleBalanceRow[]` (reuse the existing type), plus
+  2. Filter to the `SOLANA_IDLE_TOKENS` allowlist; sum raw amount per mint.
+  3. Value per `pricing.kind`: `peg` → `amount × 1`; `proxyPrice` → `amount ×
+     fetchTokenPrices(...)` for the referenced `{network,address}`, and if the
+     price is absent, **exclude the token + `console.warn` + record a failure**
+     (never `?? 0`). Proxy prices for all `proxyPrice` mints are fetched in one
+     batched Alchemy Prices call.
+  4. Aggregate per symbol → `IdleBalanceRow[]` (reuse the existing type; carry an
+     `approx` flag for proxy-priced rows so the UI can footnote it), plus
      per-wallet USD (`walletIdleUsd`-shaped) and `failures`.
   `server-only`. Partial-data tolerant via `Promise.allSettled`.
 
@@ -114,17 +163,17 @@ Scope is reconciliation + monitored-wallet inventory. **No new UI page.**
 
 - **balances.test.ts** — parse a recorded `getTokenAccountsByOwner` jsonParsed
   fixture covering both token programs; correct per-mint summation; vault-share
-  mints excluded; valuation (peg vs Jupiter price); failure paths (RPC down,
-  price missing → token excluded, not zeroed).
-- **prices.test.ts** — stables short-circuit (no network); Jupiter response
-  parsing; missing-mint handling.
+  mints (`Bd2wJsmaF3YKC6f…`) and dust excluded; valuation (peg vs proxyPrice);
+  failure paths (RPC down, proxy price missing → token excluded, not zeroed).
+- **prices.test.ts** — Alchemy Prices response parsing (`data[].prices[].value`
+  string → number); missing-address handling (returns no entry, not 0).
 - **reconciliation** — extend existing coverage: JAAA nets on-chain and the gap
   closes within tolerance; no double-count of USDG/PYUSD against protocol rows.
 
 ## Infra
 
-- Reuses `ALCHEMY_KEY` (Alchemy Solana endpoint) — **no new secret**, no Vercel
-  env change. Jupiter price API is keyless.
+- Reuses `ALCHEMY_KEY` for **both** the Solana RPC endpoint and the Alchemy
+  Prices API — **no new secret**, no new dependency, no Vercel env change.
 - Reads run live at ISR time (idle reads are not snapshotted) — **no change to
   `scripts/refresh-flows.ts`**.
 
