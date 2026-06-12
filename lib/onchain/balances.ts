@@ -5,6 +5,7 @@ import { MONITORED_WALLETS, isReserveFundWallet } from "@/config/wallets"
 import { IDLE_TOKENS, type IdleToken } from "@/config/idle-tokens"
 import { RESERVE_FUND_MIN_USD } from "@/config/reserve-fund"
 import { getReserveFundLpRows } from "./reserve-fund"
+import { fetchTokenPrices, priceKey } from "./prices"
 import type { Chain } from "@/config/markets"
 
 const erc4626Abi = parseAbi([
@@ -63,6 +64,24 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
   const uncoveredChains: Chain[] = []
 
   const chainEntries = Object.entries(IDLE_TOKENS) as [Chain, IdleToken[]][]
+
+  // Collect every priceVia token across all chains and batch-fetch their
+  // prices once before the per-chain scan.  A fetch failure pushes a failure
+  // entry and leaves the map empty — individual token handling will then
+  // exclude the affected tokens rather than valuing them at $0.
+  const priceViaRefs = chainEntries.flatMap(([, tokens]) =>
+    tokens
+      .filter((t) => t.priceVia)
+      .map((t) => ({ network: t.priceVia!.network, address: t.priceVia!.address })),
+  )
+  const tokenPrices = await fetchTokenPrices(priceViaRefs).catch((err) => {
+    failures.push({
+      chain: "base",
+      tokenSymbol: "*-price",
+      reason: err instanceof Error ? err.message : String(err),
+    })
+    return new Map<string, number>()
+  })
 
   // The reserve fund's Curve LP positions are read in parallel with the
   // per-chain stablecoin scan. A failure here shouldn't blank the rest.
@@ -163,17 +182,51 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
           assetByAddress.set(token.address.toLowerCase(), r.result as bigint)
         })
 
-        return tokens.map((token) => {
+        const rows: IdleBalanceRow[] = []
+        for (const token of tokens) {
           const rawAmt = raw.get(token.address.toLowerCase()) ?? BigInt(0)
-          const valuedRaw = token.isErc4626
-            ? assetByAddress.get(token.address.toLowerCase()) ?? rawAmt
-            : rawAmt
-          return {
-            symbol: token.symbol,
-            totalUsd: Number(valuedRaw) / 10 ** token.decimals,
-            isErc4626: !!token.isErc4626,
+
+          if (token.isErc4626) {
+            // ERC4626: unwrap shares to underlying-asset units via convertToAssets.
+            const valuedRaw = assetByAddress.get(token.address.toLowerCase()) ?? rawAmt
+            rows.push({
+              symbol: token.symbol,
+              totalUsd: Number(valuedRaw) / 10 ** token.decimals,
+              isErc4626: true,
+            })
+          } else if (token.priceVia) {
+            // Non-stable RWA: price via the Alchemy Prices API.
+            const pk = priceKey(token.priceVia.network, token.priceVia.address)
+            const price = tokenPrices.get(pk)
+            if (price === undefined) {
+              // Missing price — exclude this token rather than value it at $0.
+              console.warn(
+                `[idle-balances] No Alchemy price for ${token.symbol} (${pk}); excluding from results`,
+              )
+              failures.push({
+                chain,
+                tokenSymbol: token.symbol,
+                reason: `price missing from Alchemy map (key: ${pk})`,
+              })
+              continue
+            }
+            const amount = Number(rawAmt) / 10 ** token.decimals
+            rows.push({
+              symbol: token.symbol,
+              totalUsd: amount * price,
+              isErc4626: false,
+              approx: true,
+            })
+          } else {
+            // Plain stablecoin: 1:1 USD.
+            rows.push({
+              symbol: token.symbol,
+              totalUsd: Number(rawAmt) / 10 ** token.decimals,
+              isErc4626: false,
+            })
           }
-        })
+        }
+        return rows
       }
 
       return {
@@ -190,7 +243,7 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
     pick: (c: ChainRows) => IdleBalanceRow[],
     recordFailures: boolean,
   ): IdleBalanceRow[] => {
-    const totals = new Map<string, { usd: number; isErc4626: boolean }>()
+    const totals = new Map<string, { usd: number; isErc4626: boolean; approx: boolean }>()
     chainResults.forEach((r, i) => {
       const [chain] = chainEntries[i]!
       if (r.status === "rejected") {
@@ -209,11 +262,17 @@ export async function getEthenaIdleBalances(): Promise<IdleBalanceResult> {
         totals.set(row.symbol, {
           usd: (prev?.usd ?? 0) + row.totalUsd,
           isErc4626: (prev?.isErc4626 ?? false) || row.isErc4626,
+          approx: (prev?.approx ?? false) || (row.approx ?? false),
         })
       }
     })
     return [...totals.entries()]
-      .map(([symbol, { usd, isErc4626 }]) => ({ symbol, totalUsd: usd, isErc4626 }))
+      .map(([symbol, { usd, isErc4626, approx }]) => ({
+        symbol,
+        totalUsd: usd,
+        isErc4626,
+        ...(approx ? { approx: true } : {}),
+      }))
       .sort((a, b) => b.totalUsd - a.totalUsd)
   }
 

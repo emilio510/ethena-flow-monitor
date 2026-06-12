@@ -11,6 +11,9 @@ export interface IdleToken {
    *  `convertToAssets(balance)` to get the underlying-asset equivalent and
    *  use that as the USD value (close enough since underlying is dollar-pegged). */
   isErc4626?: boolean
+  /** Price via the Alchemy Prices API by (network,address) instead of the
+   *  default $1 peg. For non-stable RWA tokens held idle. */
+  priceVia?: { network: string; address: string; approx?: boolean }
 }
 
 /** Stablecoins + Ethena collateral assets we treat as "backing".
@@ -33,6 +36,8 @@ export const IDLE_TOKENS: Record<Chain, IdleToken[]> = {
   base: [
     { symbol: "USDC",   address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6  },
     { symbol: "USDe",   address: "0x5d3a1ff2b6bab83b63cd9ad0787074081a52ef34", decimals: 18 },
+    { symbol: "JAAA",   address: "0x5a0f93d040de44e78f251b03c43be9cf317dcf64", decimals: 6,
+      priceVia: { network: "base-mainnet", address: "0x5a0f93d040de44e78f251b03c43be9cf317dcf64", approx: true } },
   ],
   // Mantle/Plasma/MegaETH idle balances were probed against the 11 wallets
   // and returned ~$0 for the addresses we trust. The Debank screenshot's
