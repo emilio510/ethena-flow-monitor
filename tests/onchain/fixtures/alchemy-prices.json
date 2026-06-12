@@ -1,0 +1,17 @@
+{
+  "data": [
+    {
+      "network": "base-mainnet",
+      "address": "0x5a0f93d040de44e78f251b03c43be9cf317dcf64",
+      "prices": [
+        { "currency": "usd", "value": "1.03757", "lastUpdatedAt": "2026-06-12T13:10:07Z" }
+      ]
+    },
+    {
+      "network": "base-mainnet",
+      "address": "0x0000000000000000000000000000000000000000",
+      "prices": [],
+      "error": "no price found"
+    }
+  ]
+}
