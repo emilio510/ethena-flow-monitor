@@ -43,9 +43,10 @@ Scope is reconciliation + monitored-wallet inventory. **No new UI page.**
      `base-mainnet` → $1.03757 (live). JAAA is the Janus Henderson Anemoy AAA
      CLO fund, tokenized on both Base and Solana at the same NAV; it has a
      market price on Base but none on Solana (Jupiter returns `{}`).
-   - **No Jupiter dependency.** After excluding vault-shares and dust, the only
-     valued tokens at these two addresses are stables (peg) + JAAA (Alchemy
-     proxy price), so the Jupiter price API is not needed.
+   - **Jupiter price** is used for the **deployed-bucket** jleUSDG vault share
+     (Alchemy cannot price Solana mints): it values C23FGx's on-chain inventory
+     total only — never idle or reconciliation. Idle-bucket valuation is stables
+     (peg) + JAAA (Alchemy proxy price).
 
 ## Reconnaissance findings (2026-06-12, live Alchemy + Jupiter)
 
