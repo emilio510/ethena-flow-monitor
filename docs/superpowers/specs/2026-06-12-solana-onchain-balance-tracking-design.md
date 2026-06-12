@@ -140,10 +140,17 @@ Actual on-chain holdings (`getTokenAccountsByOwner`, both token programs):
 
 - **`lib/views/footprint.ts` (`loadFootprint`)** — call
   `getEthenaSolanaIdleBalances()` in parallel with the existing readers
-  (`Promise.allSettled`, like `getEthenaSolanaPositions`). Add the two Solana
-  addresses to `WalletInventoryRow[]` (`chain: "solana"`, `apiLabel` from
-  snapshot counterparty / known label, `totalUsd` = Solana idle USD). Thread a
-  `failedSolanaBalances` field through `FootprintResult`.
+  (`Promise.allSettled`, like `getEthenaSolanaPositions`). **Switch the two
+  Solana `WalletInventoryRow`s to on-chain totals** (`walletTotalUsd`, replacing
+  the snapshot value): `4FaQc6` ≈ $200M (JAAA, idle bucket), `C23FGx` ≈ $251M
+  (jleUSDG, deployed bucket). `apiLabel` from snapshot counterparty, `label`
+  from `KNOWN_SOLANA_WALLET_LABELS`. Thread a `failedSolanaBalances` field
+  through `FootprintResult`.
+- **Accounting buckets (registry `bucket`):** `idle` = base asset → folds into
+  `idle`/reconciliation/inventory; `deployed` = vault-share already counted by a
+  footprint row (jleUSDG via `buildJupiterRow`) → inventory total ONLY, never
+  idle/reconciliation. Replaces the earlier blunt vault-share exclusion and is
+  what lets the inventory show on-chain totals without double-counting.
 - **`lib/views/reconciliation.ts` (`buildReconciliation`)** — merge the Solana
   idle rows into the `idle` argument so they net on the on-chain side by symbol.
   JAAA flips from a structural gap to verified within tolerance; USDG/PYUSD

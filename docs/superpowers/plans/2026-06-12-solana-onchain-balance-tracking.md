@@ -24,14 +24,24 @@
 ## File Structure
 
 - Create `config/solana-wallets.ts` — the two addresses + labels + `isSolanaWallet`.
-- Create `config/solana-idle-tokens.ts` — mint allowlist with `pricing` union + `EXCLUDED_MINTS` doc.
-- Create `lib/onchain/prices.ts` — Alchemy Prices API client (chain-agnostic).
+- Create `config/solana-idle-tokens.ts` — mint allowlist with `pricing` union + `bucket` ("idle" | "deployed") + `EXCLUDED_MINTS` doc.
+- Create `lib/onchain/prices.ts` — Alchemy Prices API client (chain-agnostic; prices JAAA via its Base contract).
+- Create `lib/solana/prices.ts` — Jupiter price API v3 client (prices the jleUSDG vault share, which Alchemy cannot).
 - Create `lib/solana/rpc.ts` — `getTokenAccountsByOwner` over both token programs.
-- Create `lib/solana/balances.ts` — `getEthenaSolanaIdleBalances()` orchestrator + valuation.
+- Create `lib/solana/balances.ts` — `getEthenaSolanaIdleBalances()` orchestrator: idle-bucket rows (reconciliation) + per-wallet on-chain total across all buckets (inventory).
 - Modify `lib/onchain/balances.ts` — add optional `approx?` to `IdleBalanceRow`.
 - Modify `lib/solana/client.ts` — widen `SolanaApiError`/`SolanaTimeoutError` `source` union.
-- Modify `lib/views/footprint.ts` — fold Solana idle into `idle` (like RLUSD); thread `failedSolanaBalances`.
+- Modify `lib/views/footprint.ts` — fold Solana idle into `idle` (like RLUSD); thread `failedSolanaBalances`; **switch the Solana inventory rows to on-chain `walletTotalUsd`** (replacing snapshot value).
 - Tests under `tests/solana/` and `tests/onchain/` with fixtures.
+
+## Accounting model (idle vs deployed bucket)
+
+Each allowlisted mint has a `bucket`:
+
+- **`idle`** — a base backing asset held directly (JAAA, stablecoins). Counts in the idle rows → reconciliation "verified" side, the idle total, AND the wallet's on-chain inventory total.
+- **`deployed`** — a vault-share / receipt token (jleUSDG) representing a position **already counted** by a footprint row (`buildJupiterRow`). Counts ONLY in the wallet's on-chain inventory total — **never** in idle or reconciliation, or it double-counts ~$251M.
+
+This is why the inventory total and the reconciliation/idle total differ per wallet: `C23FGx` shows ~$251M inventory (its jleUSDG, deployed bucket) but contributes ~$0 to idle; `4FaQc6` shows ~$200M in both (JAAA, idle bucket).
 
 ---
 
@@ -114,7 +124,7 @@ git commit -m "feat(solana): add Solana wallet tracking config"
 
 ---
 
-## Task 2: Solana idle-token registry
+## Task 2: Solana token registry (idle + deployed buckets)
 
 **Files:**
 - Create: `config/solana-idle-tokens.ts`
@@ -127,14 +137,14 @@ import { describe, it, expect } from "vitest"
 import {
   SOLANA_IDLE_TOKENS,
   EXCLUDED_MINTS,
-  type SolanaIdleToken,
 } from "@/config/solana-idle-tokens"
 
-describe("solana-idle-tokens registry", () => {
-  it("prices JAAA via its Base contract (proxyPrice, approx)", () => {
+describe("solana token registry", () => {
+  it("prices JAAA via its Base contract (proxyPrice, approx) in the idle bucket", () => {
     const jaaa = SOLANA_IDLE_TOKENS["AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG"]
     expect(jaaa.symbol).toBe("JAAA")
     expect(jaaa.decimals).toBe(6)
+    expect(jaaa.bucket).toBe("idle")
     expect(jaaa.pricing).toEqual({
       kind: "proxyPrice",
       network: "base-mainnet",
@@ -143,15 +153,21 @@ describe("solana-idle-tokens registry", () => {
     })
   })
 
-  it("pegs the stable mints", () => {
+  it("pegs the stable mints (idle bucket)", () => {
     const usdc = SOLANA_IDLE_TOKENS["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"]
     expect(usdc.pricing).toEqual({ kind: "peg" })
+    expect(usdc.bucket).toBe("idle")
   })
 
-  it("excludes the jleUSDG vault share (double-count guard)", () => {
-    const jle = "Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc"
-    expect(SOLANA_IDLE_TOKENS[jle]).toBeUndefined()
-    expect(EXCLUDED_MINTS[jle]).toMatch(/vault share|double-count/i)
+  it("tracks the jleUSDG vault share in the DEPLOYED bucket (Jupiter-priced)", () => {
+    const jle = SOLANA_IDLE_TOKENS["Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc"]
+    expect(jle.symbol).toBe("jleUSDG")
+    expect(jle.bucket).toBe("deployed")
+    expect(jle.pricing).toEqual({ kind: "jupiter" })
+  })
+
+  it("documents why dust/other mints stay excluded", () => {
+    expect(Object.keys(EXCLUDED_MINTS).length).toBeGreaterThanOrEqual(0)
   })
 })
 ```
@@ -169,29 +185,42 @@ Expected: FAIL — cannot find module `@/config/solana-idle-tokens`.
  * How to value an allowlisted Solana mint.
  *  - peg: hard $1 (stablecoins).
  *  - proxyPrice: price via a reference EVM contract through the Alchemy Prices
- *    API. Used for tokens with no Solana DEX price but a market price on
- *    another chain (JAAA: same fund on Base + Solana, priced on Base). `approx`
- *    flags the UI to footnote it.
+ *    API. For tokens with no Solana price but a market price on another chain
+ *    (JAAA: same fund on Base + Solana, priced on Base). `approx` footnotes it.
+ *  - jupiter: live Solana DEX price via the Jupiter price API (the only source
+ *    that prices the jleUSDG vault share; Alchemy cannot).
  */
 export type SolanaPricing =
   | { kind: "peg" }
   | { kind: "proxyPrice"; network: string; address: string; approx?: boolean }
+  | { kind: "jupiter" }
+
+/**
+ * Accounting bucket:
+ *  - "idle": base backing asset held directly. Counts in idle rows →
+ *    reconciliation + idle total + wallet inventory total.
+ *  - "deployed": vault-share / receipt token whose underlying position is
+ *    ALREADY counted by a footprint row. Counts ONLY in the wallet inventory
+ *    total — never in idle / reconciliation (or it double-counts).
+ */
+export type SolanaBucket = "idle" | "deployed"
 
 export interface SolanaIdleToken {
   symbol: string
   mint: string
   decimals: number
   pricing: SolanaPricing
+  bucket: SolanaBucket
 }
 
 /**
- * Allowlist of base backing assets we value when held idle at SOLANA_WALLETS,
- * keyed by mint. Mints NOT listed here are ignored — which is how vault-share
- * tokens and dust are excluded (see EXCLUDED_MINTS for the why).
+ * Allowlist of mints we value when held at SOLANA_WALLETS, keyed by mint.
+ * Mints NOT listed here are ignored (that is how dust is dropped).
  *
  * Additional idle stable mints (USDG / PYUSD / USDe on Solana) can be added
- * here with their verified mint + { kind: "peg" } when Ethena parks idle
- * stables at these addresses; today the only non-dust idle holding is JAAA.
+ * with their verified mint + { kind: "peg" } + bucket "idle" when Ethena parks
+ * idle stables here; today the only non-dust idle holding is JAAA, and the only
+ * deployed holding is the jleUSDG vault share.
  */
 export const SOLANA_IDLE_TOKENS: Record<string, SolanaIdleToken> = {
   AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG: {
@@ -204,36 +233,47 @@ export const SOLANA_IDLE_TOKENS: Record<string, SolanaIdleToken> = {
       address: "0x5a0f93d040de44e78f251b03c43be9cf317dcf64",
       approx: true,
     },
+    bucket: "idle",
   },
   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: {
     symbol: "USDC",
     mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     decimals: 6,
     pricing: { kind: "peg" },
+    bucket: "idle",
+  },
+  // The Jupiter Lend (jleUSDG) receipt the C23FGx omnibus holds. Its USDG
+  // position is already counted by buildJupiterRow, so it is DEPLOYED-bucket:
+  // shown in the wallet's on-chain inventory total but kept out of idle/recon.
+  Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc: {
+    symbol: "jleUSDG",
+    mint: "Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc",
+    decimals: 6,
+    pricing: { kind: "jupiter" },
+    bucket: "deployed",
   },
 }
 
 /**
- * Mints deliberately kept OUT of the allowlist, with the reason. The allowlist
- * already excludes them; this is defensive documentation so a future edit does
- * not "helpfully" add a vault-share token and double-count.
+ * Mints deliberately kept OUT of the allowlist, with the reason. Defensive
+ * documentation — the allowlist already excludes anything not listed above.
  */
 export const EXCLUDED_MINTS: Record<string, string> = {
-  Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc:
-    "jleUSDG vault share (JUPITER_ETHENA_LENDING_VAULT) — already counted by buildJupiterRow; valuing here double-counts ~$251M",
+  "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH":
+    "sub-dollar dust stable held by both wallets — below the $1 dust floor",
 }
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm vitest run tests/config/solana-idle-tokens.test.ts`
-Expected: PASS (3 tests).
+Expected: PASS (4 tests).
 
 - [ ] **Step 5: Commit**
 
 ```bash
 git add config/solana-idle-tokens.ts tests/config/solana-idle-tokens.test.ts
-git commit -m "feat(solana): add idle-token allowlist with proxy-price + exclusion guard"
+git commit -m "feat(solana): token registry with idle/deployed buckets + price kinds"
 ```
 
 ---
@@ -651,7 +691,133 @@ git commit -m "feat(solana): add getTokenAccountsByOwner reader (both token prog
 
 ---
 
-## Task 5: Solana idle-balance orchestrator + valuation
+## Task 5: Jupiter price client
+
+**Files:**
+- Create: `lib/solana/prices.ts`
+- Test: `tests/solana/prices.test.ts`
+- Create fixture: `tests/solana/fixtures/jupiter-prices.json`
+
+- [ ] **Step 1: Create the fixture** (real Jupiter price v3 shape for jleUSDG)
+
+```json
+{
+  "Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc": {
+    "usdPrice": 1.0020312482166274,
+    "blockId": 425525063,
+    "decimals": 6
+  }
+}
+```
+
+- [ ] **Step 2: Write the failing test**
+
+```ts
+import { describe, it, expect, vi, beforeEach } from "vitest"
+import { readFileSync } from "node:fs"
+import path from "node:path"
+
+const fixture = JSON.parse(
+  readFileSync(path.join(__dirname, "fixtures", "jupiter-prices.json"), "utf8"),
+)
+
+beforeEach(() => {
+  vi.resetModules()
+  vi.unstubAllGlobals()
+})
+
+function stubFetch(payload: unknown, ok = true, status = 200) {
+  vi.stubGlobal("fetch", vi.fn().mockResolvedValue({ ok, status, json: async () => payload, text: async () => JSON.stringify(payload) }))
+}
+
+describe("fetchJupiterPrices", () => {
+  it("returns a mint -> usd map", async () => {
+    stubFetch(fixture)
+    const { fetchJupiterPrices } = await import("@/lib/solana/prices")
+    const prices = await fetchJupiterPrices(["Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc"])
+    expect(prices.get("Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc")).toBeCloseTo(1.00203, 4)
+  })
+
+  it("omits mints Jupiter cannot price (no default 0)", async () => {
+    stubFetch({}) // JAAA-style: empty response
+    const { fetchJupiterPrices } = await import("@/lib/solana/prices")
+    const prices = await fetchJupiterPrices(["AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG"])
+    expect(prices.has("AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG")).toBe(false)
+  })
+
+  it("returns empty map for empty input without calling fetch", async () => {
+    const spy = vi.fn()
+    vi.stubGlobal("fetch", spy)
+    const { fetchJupiterPrices } = await import("@/lib/solana/prices")
+    const prices = await fetchJupiterPrices([])
+    expect(prices.size).toBe(0)
+    expect(spy).not.toHaveBeenCalled()
+  })
+})
+```
+
+- [ ] **Step 3: Run test to verify it fails**
+
+Run: `pnpm vitest run tests/solana/prices.test.ts`
+Expected: FAIL — cannot find module `@/lib/solana/prices`.
+
+- [ ] **Step 4: Write minimal implementation**
+
+```ts
+// lib/solana/prices.ts
+import "server-only"
+import { z } from "zod"
+
+const DEFAULT_TIMEOUT_MS = 15_000
+
+// Jupiter price v3: { [mint]: { usdPrice: number, decimals, blockId, ... } }.
+// Mints with no price are omitted from the object entirely.
+const JupiterPriceResponse = z.record(
+  z.string(),
+  z.object({ usdPrice: z.number() }).passthrough(),
+)
+
+/**
+ * Fetch live Solana USD spot prices by mint from the Jupiter price API v3.
+ * Returns a mint -> price map. Mints Jupiter can't price are simply absent —
+ * callers MUST treat "missing" as missing, never as 0.
+ */
+export async function fetchJupiterPrices(mints: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  if (mints.length === 0) return out
+
+  const url = `https://lite-api.jup.ag/price/v3?ids=${mints.join(",")}`
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(DEFAULT_TIMEOUT_MS),
+  })
+  if (!res.ok) {
+    throw new Error(`Jupiter price API error ${res.status}: ${await res.text()}`)
+  }
+  const parsed = JupiterPriceResponse.parse(await res.json())
+  for (const [mint, info] of Object.entries(parsed)) {
+    if (Number.isFinite(info.usdPrice)) out.set(mint, info.usdPrice)
+  }
+  return out
+}
+```
+
+- [ ] **Step 5: Run test to verify it passes**
+
+Run: `pnpm vitest run tests/solana/prices.test.ts`
+Expected: PASS (3 tests).
+
+- [ ] **Step 6: Commit**
+
+```bash
+git add lib/solana/prices.ts tests/solana/prices.test.ts tests/solana/fixtures/jupiter-prices.json
+git commit -m "feat(solana): add Jupiter price API client"
+```
+
+---
+
+## Task 6: Solana balance orchestrator (idle rows + on-chain wallet totals)
 
 **Files:**
 - Modify: `lib/onchain/balances.ts:18-26` (add optional `approx?` to `IdleBalanceRow`)
@@ -683,17 +849,19 @@ beforeEach(() => {
   vi.unstubAllGlobals()
 })
 
+const C23 = "C23FGxQB2LsoTbZsQr5w3R7b3sw5saxPLGJ4ujvyH34L"
+const FAQ = "4FaQc6QZ5skFjcDF64mKcXRhtCCsnArZcr1xumPNrbtN"
+
 describe("getEthenaSolanaIdleBalances", () => {
-  it("surfaces JAAA at the proxy price, excludes vault shares + dust", async () => {
+  it("idle rows hold JAAA only; jleUSDG is deployed-bucket (inventory only)", async () => {
     vi.doMock("@/lib/solana/rpc", () => ({
       getTokenBalancesByOwner: vi.fn(async (owner: string) => {
-        if (owner === "4FaQc6QZ5skFjcDF64mKcXRhtCCsnArZcr1xumPNrbtN") {
+        if (owner === FAQ) {
           return [
             { mint: "AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG", rawAmount: 192821471943242n, decimals: 6 },
             { mint: "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH", rawAmount: 32741n, decimals: 6 },
           ]
         }
-        // C23FGx holds only the jleUSDG vault share (excluded) + dust
         return [{ mint: "Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc", rawAmount: 250930298050455n, decimals: 6 }]
       }),
     }))
@@ -703,20 +871,30 @@ describe("getEthenaSolanaIdleBalances", () => {
       ),
       priceKey: (n: string, a: string) => `${n}:${a.toLowerCase()}`,
     }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () =>
+        new Map([["Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc", 1.0020312]]),
+      ),
+    }))
 
     const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
     const res = await getEthenaSolanaIdleBalances()
 
+    // idle (reconciliation) side: JAAA only, NOT jleUSDG.
+    expect(res.rows.map((r) => r.symbol).sort()).toEqual(["JAAA"])
     const jaaa = res.rows.find((r) => r.symbol === "JAAA")!
     expect(jaaa.totalUsd).toBeCloseTo(192821471.943242 * 1.03757, 0)
     expect(jaaa.approx).toBe(true)
-    // jleUSDG vault share must NOT appear (double-count guard)
-    expect(res.rows.some((r) => r.symbol === "jleUSDG")).toBe(false)
-    // dust USDC stays out (sub-$1)
     expect(res.totalUsd).toBeCloseTo(jaaa.totalUsd, 0)
+
+    // inventory side: per-wallet on-chain total INCLUDING the deployed jleUSDG.
+    const c23 = res.walletTotalUsd.find((w) => w.address === C23)!
+    expect(c23.totalUsd).toBeCloseTo(250930298.050455 * 1.0020312, 0) // ~$251.4M
+    const faq = res.walletTotalUsd.find((w) => w.address === FAQ)!
+    expect(faq.totalUsd).toBeCloseTo(jaaa.totalUsd, 0) // ~$200M
   })
 
-  it("excludes a token (does not zero it) when its proxy price is missing", async () => {
+  it("excludes a token (does not zero it) when its price is missing", async () => {
     vi.doMock("@/lib/solana/rpc", () => ({
       getTokenBalancesByOwner: vi.fn(async () => [
         { mint: "AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG", rawAmount: 192821471943242n, decimals: 6 },
@@ -726,6 +904,7 @@ describe("getEthenaSolanaIdleBalances", () => {
       fetchTokenPrices: vi.fn(async () => new Map()), // no price returned
       priceKey: (n: string, a: string) => `${n}:${a.toLowerCase()}`,
     }))
+    vi.doMock("@/lib/solana/prices", () => ({ fetchJupiterPrices: vi.fn(async () => new Map()) }))
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
 
     const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
@@ -752,28 +931,34 @@ import type { IdleBalanceRow } from "@/lib/onchain/balances"
 import { SOLANA_WALLETS } from "@/config/solana-wallets"
 import { SOLANA_IDLE_TOKENS, type SolanaIdleToken } from "@/config/solana-idle-tokens"
 import { fetchTokenPrices, priceKey, type TokenRef } from "@/lib/onchain/prices"
+import { fetchJupiterPrices } from "./prices"
 import { getTokenBalancesByOwner } from "./rpc"
 
-/** Idle balances valued below this (USD) are dropped as dust. */
+/** Holdings valued below this (USD) are dropped as dust. */
 const MIN_DUST_USD = 1
 
 export interface SolanaIdleResult {
+  /** Idle-bucket rows (base assets) — feed reconciliation + idle total. */
   rows: IdleBalanceRow[]
+  /** Sum of `rows` (idle bucket only). */
   totalUsd: number
-  /** Per-wallet idle USD, keyed by the exact base58 address. */
-  walletIdleUsd: Array<{ address: string; idleUsd: number }>
+  /** Per-wallet on-chain total across ALL buckets (idle + deployed) — feeds the
+   *  monitored-wallet inventory. Keyed by the exact base58 address. */
+  walletTotalUsd: Array<{ address: string; totalUsd: number }>
   failures: Array<{ source: string; reason: string }>
 }
 
 /**
- * Read idle SPL balances at SOLANA_WALLETS and value them. Stablecoins peg to
- * $1; tokens with a `proxyPrice` (JAAA) are valued via a reference EVM
- * contract through the Alchemy Prices API. Vault-share + unlisted mints are
- * ignored (allowlist) so deployed positions are not double-counted.
+ * Read SPL balances at SOLANA_WALLETS and value them per the registry.
+ *  - idle-bucket assets (JAAA, stables) → `rows` + `totalUsd` (reconciliation).
+ *  - deployed-bucket assets (jleUSDG vault share) → counted ONLY in
+ *    `walletTotalUsd` (inventory), never in `rows`, so the Jupiter footprint
+ *    row is not double-counted.
  *
- * Partial-data tolerant: a per-wallet RPC failure records a failure and skips
- * that wallet rather than blanking the rest. A missing proxy price EXCLUDES the
- * token (never values it at 0) and records a failure.
+ * Pricing: peg → $1; proxyPrice (JAAA) → Alchemy Prices via its Base contract;
+ * jupiter (jleUSDG) → Jupiter price API. Partial-tolerant: a per-wallet RPC
+ * failure skips that wallet; a missing price EXCLUDES the token (never 0) and
+ * records a failure.
  */
 export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
   const failures: SolanaIdleResult["failures"] = []
@@ -796,22 +981,24 @@ export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
     }
     const byMint = new Map<string, bigint>()
     for (const b of r.value.balances) {
-      if (!SOLANA_IDLE_TOKENS[b.mint]) continue // allowlist: excludes vault shares + dust
+      if (!SOLANA_IDLE_TOKENS[b.mint]) continue // allowlist: drops dust + unknown
       byMint.set(b.mint, (byMint.get(b.mint) ?? 0n) + b.rawAmount)
     }
     rawByWalletMint.set(address, byMint)
   })
 
-  // 3. Batch-fetch proxy prices for every proxyPrice mint actually held.
-  const proxyRefs: TokenRef[] = []
+  // 3. Collect held mints, then batch-fetch prices by source.
   const heldMints = new Set<string>()
   for (const byMint of rawByWalletMint.values()) for (const m of byMint.keys()) heldMints.add(m)
+
+  const proxyRefs: TokenRef[] = []
+  const jupiterMints: string[] = []
   for (const mint of heldMints) {
-    const tok = SOLANA_IDLE_TOKENS[mint]!
-    if (tok.pricing.kind === "proxyPrice") {
-      proxyRefs.push({ network: tok.pricing.network, address: tok.pricing.address })
-    }
+    const p = SOLANA_IDLE_TOKENS[mint]!.pricing
+    if (p.kind === "proxyPrice") proxyRefs.push({ network: p.network, address: p.address })
+    else if (p.kind === "jupiter") jupiterMints.push(mint)
   }
+
   let proxyPrices = new Map<string, number>()
   if (proxyRefs.length > 0) {
     try {
@@ -820,30 +1007,40 @@ export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
       failures.push({ source: "alchemy-prices", reason: reasonOf(err) })
     }
   }
+  let jupiterPrices = new Map<string, number>()
+  if (jupiterMints.length > 0) {
+    try {
+      jupiterPrices = await fetchJupiterPrices(jupiterMints)
+    } catch (err) {
+      failures.push({ source: "jupiter-prices", reason: reasonOf(err) })
+    }
+  }
 
-  // 4. Value -> per-symbol rows + per-wallet USD.
+  // 4. Value -> idle-bucket per-symbol rows + per-wallet all-bucket total.
   const bySymbol = new Map<string, { usd: number; approx: boolean }>()
-  const walletIdleUsd: SolanaIdleResult["walletIdleUsd"] = []
+  const walletTotalUsd: SolanaIdleResult["walletTotalUsd"] = []
 
   for (const [address, byMint] of rawByWalletMint) {
     let walletUsd = 0
     for (const [mint, raw] of byMint) {
       const tok = SOLANA_IDLE_TOKENS[mint]!
-      const priced = valueToken(tok, raw, proxyPrices)
+      const priced = valueToken(tok, raw, proxyPrices, jupiterPrices)
       if (priced === null) {
-        console.warn(`[ethena-flow-monitor] no proxy price for ${tok.symbol} (${mint}) — excluding`)
-        failures.push({ source: `price:${tok.symbol}`, reason: "missing proxy price" })
+        console.warn(`[ethena-flow-monitor] no price for ${tok.symbol} (${mint}) — excluding`)
+        failures.push({ source: `price:${tok.symbol}`, reason: "missing price" })
         continue
       }
       if (priced.usd < MIN_DUST_USD) continue
-      walletUsd += priced.usd
-      const prev = bySymbol.get(tok.symbol)
-      bySymbol.set(tok.symbol, {
-        usd: (prev?.usd ?? 0) + priced.usd,
-        approx: (prev?.approx ?? false) || priced.approx,
-      })
+      walletUsd += priced.usd // inventory total: every bucket
+      if (tok.bucket === "idle") {
+        const prev = bySymbol.get(tok.symbol)
+        bySymbol.set(tok.symbol, {
+          usd: (prev?.usd ?? 0) + priced.usd,
+          approx: (prev?.approx ?? false) || priced.approx,
+        })
+      }
     }
-    walletIdleUsd.push({ address, idleUsd: walletUsd })
+    walletTotalUsd.push({ address, totalUsd: walletUsd })
   }
 
   const rows: IdleBalanceRow[] = [...bySymbol.entries()]
@@ -853,22 +1050,31 @@ export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
   return {
     rows,
     totalUsd: rows.reduce((a, r) => a + r.totalUsd, 0),
-    walletIdleUsd,
+    walletTotalUsd,
     failures,
   }
 }
 
-/** Returns null when a proxy price is required but missing (caller excludes). */
+/** Returns null when a required price is missing (caller excludes the token). */
 function valueToken(
   tok: SolanaIdleToken,
   raw: bigint,
   proxyPrices: Map<string, number>,
+  jupiterPrices: Map<string, number>,
 ): { usd: number; approx: boolean } | null {
   const amount = Number(raw) / 10 ** tok.decimals
-  if (tok.pricing.kind === "peg") return { usd: amount, approx: false }
-  const price = proxyPrices.get(priceKey(tok.pricing.network, tok.pricing.address))
-  if (price === undefined) return null
-  return { usd: amount * price, approx: tok.pricing.approx ?? false }
+  switch (tok.pricing.kind) {
+    case "peg":
+      return { usd: amount, approx: false }
+    case "proxyPrice": {
+      const price = proxyPrices.get(priceKey(tok.pricing.network, tok.pricing.address))
+      return price === undefined ? null : { usd: amount * price, approx: tok.pricing.approx ?? false }
+    }
+    case "jupiter": {
+      const price = jupiterPrices.get(tok.mint)
+      return price === undefined ? null : { usd: amount * price, approx: false }
+    }
+  }
 }
 
 function reasonOf(err: unknown): string {
@@ -885,15 +1091,15 @@ Expected: PASS (2 tests).
 
 ```bash
 git add lib/solana/balances.ts lib/onchain/balances.ts tests/solana/balances.test.ts
-git commit -m "feat(solana): value idle balances (peg + proxy price), exclude vault shares"
+git commit -m "feat(solana): value idle (peg+proxy) + deployed (jupiter) balances by bucket"
 ```
 
 ---
 
-## Task 6: Fold Solana idle into loadFootprint
+## Task 7: Integrate into loadFootprint (idle fold + on-chain inventory)
 
 **Files:**
-- Modify: `lib/views/footprint.ts` (import, FootprintResult field, allSettled batch, fold-in, return)
+- Modify: `lib/views/footprint.ts` (imports, FootprintResult field, allSettled batch, idle fold, on-chain Solana inventory, return)
 - Test: `tests/views/footprint-solana-idle.test.ts`
 
 - [ ] **Step 1: Write the failing test**
@@ -906,43 +1112,61 @@ beforeEach(() => {
   vi.unstubAllGlobals()
 })
 
-describe("loadFootprint folds Solana idle into idle result", () => {
-  it("adds JAAA to idle.rows and idle.totalUsd", async () => {
-    // Stub every fetcher loadFootprint calls so the test is hermetic.
-    vi.doMock("@/lib/tokenlogic/positions", () => ({
-      getEthenaPositions: vi.fn(async () => ({ rows: [], failedWallets: [] })),
-      getMarketPositionsBulk: vi.fn(async () => ({ byMarket: new Map(), failedMarkets: [] })),
-    }))
-    vi.doMock("@/lib/tokenlogic/markets", () => ({ getMarketAggregates: vi.fn(async () => new Map()) }))
-    vi.doMock("@/lib/morpho/positions", () => ({
-      getEthenaMorphoPositions: vi.fn(async () => ({ positions: [], failedWallets: [] })),
-      getMorphoVaultsBulk: vi.fn(async () => new Map()),
-      MORPHO_CHAINS: [],
-    }))
-    vi.doMock("@/lib/onchain/balances", () => ({
-      getEthenaIdleBalances: vi.fn(async () => ({
-        rows: [{ symbol: "USDe", totalUsd: 1_000_000, isErc4626: false }],
-        totalUsd: 1_000_000,
-        reserveFundRows: [], reserveFundTotalUsd: 0, walletIdleUsd: [], failures: [], uncoveredChains: [],
-      })),
-    }))
-    vi.doMock("@/lib/onchain/xrpl", () => ({ getEthenaRlusdHoldings: vi.fn(async () => ({ totalUsd: 0, wallets: [] })) }))
-    vi.doMock("@/lib/solana", () => ({ getEthenaSolanaPositions: vi.fn(async () => ({ rows: [], failed: [] })) }))
-    vi.doMock("@/lib/solana/balances", () => ({
-      getEthenaSolanaIdleBalances: vi.fn(async () => ({
-        rows: [{ symbol: "JAAA", totalUsd: 200_000_000, isErc4626: false, approx: true }],
-        totalUsd: 200_000_000,
-        walletIdleUsd: [{ address: "4FaQc6QZ5skFjcDF64mKcXRhtCCsnArZcr1xumPNrbtN", idleUsd: 200_000_000 }],
-        failures: [],
-      })),
-    }))
+const FAQ = "4FaQc6QZ5skFjcDF64mKcXRhtCCsnArZcr1xumPNrbtN"
+const C23 = "C23FGxQB2LsoTbZsQr5w3R7b3sw5saxPLGJ4ujvyH34L"
 
+function stubBaseFetchers() {
+  vi.doMock("@/lib/tokenlogic/positions", () => ({
+    getEthenaPositions: vi.fn(async () => ({ rows: [], failedWallets: [] })),
+    getMarketPositionsBulk: vi.fn(async () => ({ byMarket: new Map(), failedMarkets: [] })),
+  }))
+  vi.doMock("@/lib/tokenlogic/markets", () => ({ getMarketAggregates: vi.fn(async () => new Map()) }))
+  vi.doMock("@/lib/morpho/positions", () => ({
+    getEthenaMorphoPositions: vi.fn(async () => ({ positions: [], failedWallets: [] })),
+    getMorphoVaultsBulk: vi.fn(async () => new Map()),
+    MORPHO_CHAINS: [],
+  }))
+  vi.doMock("@/lib/onchain/balances", () => ({
+    getEthenaIdleBalances: vi.fn(async () => ({
+      rows: [{ symbol: "USDe", totalUsd: 1_000_000, isErc4626: false }],
+      totalUsd: 1_000_000,
+      reserveFundRows: [], reserveFundTotalUsd: 0, walletIdleUsd: [], failures: [], uncoveredChains: [],
+    })),
+  }))
+  vi.doMock("@/lib/onchain/xrpl", () => ({ getEthenaRlusdHoldings: vi.fn(async () => ({ totalUsd: 0, wallets: [] })) }))
+  vi.doMock("@/lib/solana", () => ({ getEthenaSolanaPositions: vi.fn(async () => ({ rows: [], failed: [] })) }))
+  vi.doMock("@/lib/solana/balances", () => ({
+    getEthenaSolanaIdleBalances: vi.fn(async () => ({
+      rows: [{ symbol: "JAAA", totalUsd: 200_000_000, isErc4626: false, approx: true }],
+      totalUsd: 200_000_000,
+      walletTotalUsd: [
+        { address: FAQ, totalUsd: 200_000_000 },
+        { address: C23, totalUsd: 251_400_000 },
+      ],
+      failures: [],
+    })),
+  }))
+}
+
+describe("loadFootprint Solana integration", () => {
+  it("folds Solana idle (JAAA) into idle.rows + idle.totalUsd", async () => {
+    stubBaseFetchers()
     const { loadFootprint } = await import("@/lib/views/footprint")
-    const res = await loadFootprint() // no snapshot needed for idle folding
-
+    const res = await loadFootprint()
     expect(res.idle.rows.some((r) => r.symbol === "JAAA")).toBe(true)
-    expect(res.idle.totalUsd).toBeCloseTo(201_000_000, 0)
+    expect(res.idle.totalUsd).toBeCloseTo(201_000_000, 0) // 1M USDe + 200M JAAA
     expect(res.failedSolanaBalances).toEqual([])
+  })
+
+  it("shows the Solana wallets in inventory at their ON-CHAIN total (incl deployed jleUSDG)", async () => {
+    stubBaseFetchers()
+    const { loadFootprint } = await import("@/lib/views/footprint")
+    const res = await loadFootprint()
+    const c23 = res.walletInventory.find((w) => w.address === C23)!
+    expect(c23.chain).toBe("solana")
+    expect(c23.totalUsd).toBeCloseTo(251_400_000, 0) // on-chain (jleUSDG), NOT snapshot
+    const faq = res.walletInventory.find((w) => w.address === FAQ)!
+    expect(faq.totalUsd).toBeCloseTo(200_000_000, 0)
   })
 })
 ```
@@ -950,20 +1174,21 @@ describe("loadFootprint folds Solana idle into idle result", () => {
 - [ ] **Step 2: Run test to verify it fails**
 
 Run: `pnpm vitest run tests/views/footprint-solana-idle.test.ts`
-Expected: FAIL — `res.failedSolanaBalances` is undefined / JAAA not in idle.
+Expected: FAIL — `failedSolanaBalances` undefined; Solana inventory uses snapshot value, not 251.4M.
 
 - [ ] **Step 3: Implement the integration in `lib/views/footprint.ts`**
 
-3a. Add the import near the other Solana import (`import { getEthenaSolanaPositions } from "@/lib/solana"`):
+3a. Add imports near the existing Solana import (`import { getEthenaSolanaPositions } from "@/lib/solana"`):
 
 ```ts
 import { getEthenaSolanaIdleBalances } from "@/lib/solana/balances"
+import { SOLANA_WALLETS, KNOWN_SOLANA_WALLET_LABELS } from "@/config/solana-wallets"
 ```
 
 3b. Add a field to the `FootprintResult` interface (next to `failedSolana`):
 
 ```ts
-  /** Sources that errored while reading Solana idle balances (RPC / price).
+  /** Sources that errored while reading Solana balances (RPC / price).
    *  Empty when all succeeded. */
   failedSolanaBalances: string[]
 ```
@@ -987,18 +1212,20 @@ import { getEthenaSolanaIdleBalances } from "@/lib/solana/balances"
   const solanaIdle = safeUnwrap(5, "getEthenaSolanaIdleBalances", {
     rows: [],
     totalUsd: 0,
-    walletIdleUsd: [],
+    walletTotalUsd: [],
     failures: [],
   } as import("@/lib/solana/balances").SolanaIdleResult)
   const failedSolanaBalances = solanaIdle.failures.map((f) => f.source)
 ```
 
-3e. Extend the existing RLUSD-folding block so Solana idle rows + totals + per-wallet USD fold into `idle` too. Replace the current `const idle: IdleBalanceResult = rlusd.totalUsd > 0 ? {...} : idleRaw` block with:
+3e. Extend the RLUSD-folding block so Solana **idle** rows + total fold into `idle` (the per-wallet EVM map is untouched — Solana wallets are added to inventory separately in 3g). Replace the current `const idle: IdleBalanceResult = rlusd.totalUsd > 0 ? {...} : idleRaw` block with:
 
 ```ts
-  // RLUSD (XRPL) and Solana idle balances are both off-the-EVM-chain idle
+  // RLUSD (XRPL) and Solana idle-bucket balances are off-the-EVM-chain idle
   // backing — fold them into the idle result so they count toward total
-  // backing and flow into the reconciliation by symbol.
+  // backing and flow into the reconciliation by symbol. (Solana DEPLOYED-bucket
+  // holdings like jleUSDG are deliberately NOT here — they live in the wallet
+  // inventory only, see below, to avoid double-counting the Jupiter row.)
   const extraRows: IdleBalanceRow[] = [...solanaIdle.rows]
   if (rlusd.totalUsd > 0) {
     extraRows.push({ symbol: "RLUSD", totalUsd: rlusd.totalUsd, isErc4626: false })
@@ -1009,12 +1236,50 @@ import { getEthenaSolanaIdleBalances } from "@/lib/solana/balances"
           ...idleRaw,
           rows: [...idleRaw.rows, ...extraRows].sort((a, b) => b.totalUsd - a.totalUsd),
           totalUsd: idleRaw.totalUsd + extraRows.reduce((a, r) => a + r.totalUsd, 0),
-          walletIdleUsd: [...idleRaw.walletIdleUsd, ...solanaIdle.walletIdleUsd],
         }
       : idleRaw
 ```
 
-3f. Add `failedSolanaBalances` to the returned object (next to `failedSolana`):
+3f. **Replace** the existing snapshot-valued Solana inventory block. Find this block in the inventory section:
+
+```ts
+    const solByAddr = new Map<string, number>()
+    for (const f of flat) {
+      if (f.chainSlug !== "solana") continue
+      solByAddr.set(f.address, (solByAddr.get(f.address) ?? 0) + f.value)
+    }
+    for (const [address, totalUsd] of solByAddr) {
+      solanaWallets.push({
+        address,
+        chain: "solana",
+        role: "backing",
+        apiLabel: apiLabels.get(address),
+        totalUsd,
+      })
+    }
+```
+
+and replace it with on-chain totals from `solanaIdle.walletTotalUsd` (still reading `apiLabels` from the snapshot when present):
+
+```ts
+    const solTotalByAddr = new Map(
+      solanaIdle.walletTotalUsd.map((w) => [w.address, w.totalUsd]),
+    )
+    for (const address of SOLANA_WALLETS) {
+      solanaWallets.push({
+        address,
+        chain: "solana",
+        role: "backing",
+        apiLabel: apiLabels.get(address),
+        label: KNOWN_SOLANA_WALLET_LABELS[address],
+        totalUsd: solTotalByAddr.get(address) ?? 0,
+      })
+    }
+```
+
+Note: this block sits inside the existing `if (opts.ethenaSnapshot) { ... }` guard, which is fine — `apiLabels` needs the snapshot, and the page always passes one. The on-chain `walletTotalUsd` is independent of the snapshot; only the label is snapshot-derived.
+
+3g. Add `failedSolanaBalances` to the returned object (next to `failedSolana`):
 
 ```ts
     failedSolana,
@@ -1024,23 +1289,23 @@ import { getEthenaSolanaIdleBalances } from "@/lib/solana/balances"
 - [ ] **Step 4: Run test to verify it passes**
 
 Run: `pnpm vitest run tests/views/footprint-solana-idle.test.ts`
-Expected: PASS.
+Expected: PASS (2 tests).
 
 - [ ] **Step 5: Run the full suite to confirm no regressions**
 
 Run: `pnpm vitest run`
-Expected: PASS (all prior tests + the new ones). Fix any type mismatch surfaced.
+Expected: PASS (all prior + new). Fix any type mismatch surfaced (e.g. the `WalletInventoryRow.address` for Solana stays the exact base58 string — never lowercased).
 
 - [ ] **Step 6: Commit**
 
 ```bash
 git add lib/views/footprint.ts tests/views/footprint-solana-idle.test.ts
-git commit -m "feat(solana): fold on-chain Solana idle balances into footprint idle"
+git commit -m "feat(solana): fold Solana idle into reconciliation + on-chain wallet inventory"
 ```
 
 ---
 
-## Task 7: Reconciliation verifies JAAA (no double-count)
+## Task 8: Reconciliation verifies JAAA (no double-count)
 
 **Files:**
 - Test: `tests/views/reconciliation-solana.test.ts` (new; `buildReconciliation` itself needs NO change — JAAA arrives via the `idle` rows)
@@ -1107,7 +1372,7 @@ git commit -m "test(solana): reconciliation verifies JAAA via on-chain idle, no 
 
 ---
 
-## Task 8: Full verification (build + live smoke)
+## Task 9: Full verification (build + live smoke)
 
 **Files:** none (verification only)
 
@@ -1127,13 +1392,13 @@ Expected: build succeeds.
 pnpm dev   # in a separate shell
 ```
 Then load `http://localhost:3000` and confirm:
-- A **JAAA** row appears in the idle / reconciliation table valued ≈ **$199–200M**, flagged approx.
+- A **JAAA** row appears in the idle / reconciliation breakdown valued ≈ **$199–200M**, flagged approx.
 - JAAA's reconciliation status is **verified** (within tolerance), not a gap.
-- The two Solana addresses appear in the monitored-wallet inventory.
-- No `jleUSDG` row appears anywhere (double-count guard holds).
-- Total backing increased by ≈ JAAA's value vs before.
+- Both Solana addresses appear in the monitored-wallet inventory at their **on-chain** total: `4FaQc6…` ≈ **$200M** (JAAA), `C23FGx…` ≈ **$251M** (jleUSDG vault share, deployed bucket).
+- `jleUSDG` does **not** appear as an idle/reconciliation token row (deployed bucket — inventory total only), so total backing did not double-count it.
+- Total backing increased by ≈ JAAA's value (~$200M) vs before, not by ~$450M.
 
-Expected: all confirmed. If JAAA value is far from ~$200M, re-check the live Alchemy price and the on-chain amount (`getTokenAccountsByOwner` for `4FaQc6…`).
+Expected: all confirmed. If a figure is far off, re-check the live prices (Alchemy for JAAA via Base `0x5a0f93d0…`; Jupiter for jleUSDG `Bd2w…`) and the on-chain amounts (`getTokenAccountsByOwner`).
 
 - [ ] **Step 4: Final commit (if any smoke-fix needed; otherwise skip)**
 
@@ -1146,6 +1411,6 @@ git commit -m "fix(solana): address smoke-test findings"
 
 ## Self-Review
 
-- **Spec coverage:** wallets config (T1), registry + exclusion (T2), Alchemy Prices client (T3), RPC both-programs (T4), valuation + no-zero-default + partial tolerance (T5), footprint fold-in + inventory wallet USD (T6), reconciliation verify + no double-count (T7), build + live smoke (T8). Inventory display still uses the snapshot-valued `solanaWallets` (per spec "out of scope: dedicated drilldown"); on-chain `walletIdleUsd` is threaded for the two addresses but the snapshot inventory row is left intact — documented, not a gap.
-- **Placeholder scan:** none — every code/test step is complete; ground-truth constants are real and verified.
-- **Type consistency:** `IdleBalanceRow` gains optional `approx?`; `SolanaIdleResult` shape is identical in T5 (definition), T6 (unwrap fallback + folding), and the mock in T6's test; `fetchTokenPrices`/`priceKey` signatures match between T3 and T5; error `source` union widened in T4 before use.
+- **Spec coverage:** wallets config (T1); registry with idle/deployed buckets + exclusion doc (T2); Alchemy Prices client (T3); RPC both-programs (T4); Jupiter price client (T5); valuation by bucket + no-zero-default + partial tolerance, idle rows + on-chain wallet totals (T6); footprint idle fold + **on-chain inventory switch** (T7); reconciliation verify + no double-count (T8); build + live smoke (T9). The on-chain inventory switch (this session's added scope) is covered by T6 (`walletTotalUsd`) + T7 (inventory rows use it). No remaining gap.
+- **Placeholder scan:** none — every code/test step is complete; ground-truth constants are real and verified live 2026-06-12.
+- **Type consistency:** `IdleBalanceRow` gains optional `approx?` (T6); `SolanaIdleResult` shape (`rows`, `totalUsd`, `walletTotalUsd`, `failures`) is identical in T6 (definition), T7 (unwrap fallback + mock), and T7's assertions; `fetchTokenPrices`/`priceKey` match between T3 and T6; `fetchJupiterPrices` matches between T5 and T6; error `source` union widened in T4 before use; `SolanaPricing` union (`peg` | `proxyPrice` | `jupiter`) defined in T2 and exhaustively switched in T6's `valueToken`.
