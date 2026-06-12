@@ -49,8 +49,6 @@ type RefractiveGlassProps = HTMLAttributes<HTMLDivElement> & {
   bare?: boolean
 }
 
-const QUERY_FLAG = "glass=refractive"
-
 /** Warm counter-tint for the dichroic shift (cyan on the lit edge, gold on the far edge). */
 const DICHROIC_COUNTER = "#FFCF8A"
 
@@ -169,10 +167,10 @@ export function RefractiveGlass({
   const [size, setSize] = useState<Size | null>(null)
   const [mapUrl, setMapUrl] = useState("")
 
-  // Decide whether the refractive variant is active (client-only, after mount).
+  // Always-on: active wherever the engine supports SVG filters in backdrop-filter
+  // (client-only, after mount). Unsupported engines fall back to plain .glass.
   useEffect(() => {
-    const flagged = window.location.search.includes(QUERY_FLAG)
-    setWantRefractive(flagged && supportsBackdropFilterUrl())
+    setWantRefractive(supportsBackdropFilterUrl())
   }, [])
 
   // Track the card size so the displacement map matches its box.
