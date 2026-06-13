@@ -1,0 +1,20 @@
+{
+  "data": [
+    {
+      "symbol": "STAC",
+      "prices": [
+        { "currency": "usd", "value": "1020.44", "lastUpdatedAt": "2026-06-13T10:00:00Z" }
+      ]
+    },
+    {
+      "symbol": "JAAA",
+      "prices": [
+        { "currency": "usd", "value": "1.03757", "lastUpdatedAt": "2026-06-13T10:00:00Z" }
+      ]
+    },
+    {
+      "symbol": "UNKNOWN_TOKEN",
+      "prices": []
+    }
+  ]
+}

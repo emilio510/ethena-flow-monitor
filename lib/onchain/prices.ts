@@ -58,3 +58,49 @@ export async function fetchTokenPrices(refs: TokenRef[]): Promise<Map<string, nu
 
 /** Build the lookup key callers use against the returned map. */
 export const priceKey = key
+
+const BySymbolPricesResponse = z.object({
+  data: z.array(
+    z.object({
+      symbol: z.string(),
+      prices: z.array(PriceEntry).default([]),
+    }),
+  ),
+})
+
+/**
+ * Fetch USD spot prices for tokens via the Alchemy Prices API (by-symbol).
+ * Returns a SYMBOL_UPPER → price map. Symbols Alchemy can't price are absent.
+ * Empty input → no fetch (returns empty map). Never stores 0 or NaN — missing
+ * price means the key is absent, never silently degraded to zero.
+ *
+ * Use for Solana RWA tokens (STAC, JAAA) that Alchemy cannot price by address.
+ * Sends one `symbols` query-param per symbol in a single GET request.
+ */
+export async function fetchPricesBySymbol(symbols: string[]): Promise<Map<string, number>> {
+  const out = new Map<string, number>()
+  if (symbols.length === 0) return out
+
+  const params = new URLSearchParams()
+  for (const s of symbols) params.append("symbols", s)
+  const url = `https://api.g.alchemy.com/prices/v1/${env.ALCHEMY_KEY}/tokens/by-symbol?${params}`
+
+  const res = await fetch(url, {
+    cache: "no-store",
+    headers: { Accept: "application/json" },
+    signal: AbortSignal.timeout(15_000),
+  })
+  if (!res.ok) {
+    throw new Error(`Alchemy Prices by-symbol API error ${res.status}: ${await res.text()}`)
+  }
+
+  const parsed = BySymbolPricesResponse.parse(await res.json())
+  for (const row of parsed.data) {
+    const usd = row.prices.find((p) => p.currency === "usd")
+    if (!usd) continue
+    const n = Number(usd.value)
+    if (!Number.isFinite(n) || n === 0) continue
+    out.set(row.symbol.toUpperCase(), n)
+  }
+  return out
+}
