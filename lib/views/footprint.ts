@@ -27,6 +27,7 @@ import { SOLANA_WALLETS, KNOWN_SOLANA_WALLET_LABELS } from "@/config/solana-wall
 import { flattenWallets, type BackingSnapshot } from "@/lib/ethena"
 import { auditUntrackedHoldings, type UntrackedFinding } from "@/lib/onchain/untracked-audit"
 import { IDLE_TOKENS } from "@/config/idle-tokens"
+import { RESERVE_FUND_LPS } from "@/config/reserve-fund"
 
 export type Protocol = "AAVE V3" | "MORPHO" | "KAMINO" | "JUPITER LEND"
 
@@ -418,9 +419,14 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
   const morphoVaultAddresses = Array.from(morphoMeta.values()).map((m) =>
     m.vaultAddress.toLowerCase(),
   )
+  // 3. Reserve-fund Curve LP tokens: already tracked as reserve-fund, so the
+  //    audit must not re-flag them as "untracked". For stableswap-ng pools the
+  //    LP token IS the pool contract, so excluding `pool` covers both.
+  const reserveFundLpAddresses = RESERVE_FUND_LPS.map((lp) => lp.pool.toLowerCase())
   const auditExclude = new Set<string>([
     ...idleTokenAddresses,
     ...morphoVaultAddresses,
+    ...reserveFundLpAddresses,
   ])
 
   const untrackedHoldings = await auditUntrackedHoldings(auditExclude).catch((err) => {

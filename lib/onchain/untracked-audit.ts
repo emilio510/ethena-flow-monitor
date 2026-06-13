@@ -181,6 +181,11 @@ export async function auditUntrackedHoldings(
         const probeResults = await Promise.allSettled(
           candidates.map(async (c) => {
             // ERC-4626 stable probe (takes priority — more accurate than spot price).
+            // probeErc4626Stable already fetches decimals() via multicall; when
+            // the probe succeeds it uses them directly. When it fails (not a
+            // 4626 vault) we do a second lightweight multicall to retrieve
+            // decimals for use in the priced fallback so a 6-decimal token like
+            // USDC is not mis-scaled by 1e18.
             const erc4626 = await probeErc4626Stable(chain, c.address, c.rawBalance).catch(
               () => null,
             )
@@ -194,18 +199,32 @@ export async function auditUntrackedHoldings(
               kind = "erc4626-stable"
               symbol = erc4626.symbol
             } else {
-              // Fallback: Alchemy spot price.
+              // Fallback: Alchemy spot price with real decimals.
               const network = chain === "ethereum" ? "eth-mainnet" : `${chain}-mainnet`
               const pk = `${network}:${c.address}`
               const price = priceMap.get(pk)
               if (price !== undefined) {
-                // We don't know decimals here without another RPC call;
-                // use 18 as a safe default for valuation — this is coarse
-                // but sufficient to filter spam (real tokens will have a
-                // non-trivial raw balance even at 18 decimals).
-                // For alert purposes, this is acceptable: false positives
-                // are investigated manually and then excluded or tracked.
-                valueUsd = (Number(c.rawBalance) / 1e18) * price
+                // Fetch the token's own decimals so a 6-decimal token (e.g.
+                // USDC) is not under-valued by 1e18. Fall back to 18 only when
+                // the RPC call fails — this is coarse but always errs toward
+                // MORE alerting, which is the safe direction for an audit.
+                const decimalsAbi = parseAbi(["function decimals() view returns (uint8)"])
+                const client = getPublicClient(chain)
+                const addr = c.address as `0x${string}`
+                let decimals = 18 // safe fallback
+                try {
+                  const [dec] = await client.multicall({
+                    contracts: [{ address: addr, abi: decimalsAbi, functionName: "decimals" }],
+                    allowFailure: true,
+                  })
+                  if (dec?.status === "success") {
+                    decimals = Number(dec.result as bigint | number)
+                  }
+                  // If status is "failure", keep the fallback of 18.
+                } catch {
+                  // RPC error — keep decimals = 18 fallback.
+                }
+                valueUsd = (Number(c.rawBalance) / 10 ** decimals) * price
                 kind = "priced"
                 symbol = c.address.slice(0, 8)
               }

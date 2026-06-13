@@ -16,8 +16,10 @@ beforeEach(() => {
   vi.unstubAllGlobals()
 })
 
-const MORPHO_VAULT_ADDR = "0xbeef000000000000000000000000000000000001"
-const UNTRACKED_ADDR    = "0xfeed000000000000000000000000000000000002"
+const MORPHO_VAULT_ADDR    = "0xbeef000000000000000000000000000000000001"
+const UNTRACKED_ADDR       = "0xfeed000000000000000000000000000000000002"
+// Matches the pool address in config/reserve-fund.ts (lowercased)
+const RESERVE_FUND_LP_ADDR = "0xc2921134073151490193ac7369313c8e0b08e1e7"
 
 /** Stub all base fetchers to return minimal valid data.
  *  Includes one Morpho position with a known vault address. */
@@ -118,6 +120,26 @@ describe("loadFootprint — untrackedHoldings wiring", () => {
     expect(capturedExclude).toBeDefined()
     // The Morpho vault address must be in the exclusion set
     expect(capturedExclude!.has(MORPHO_VAULT_ADDR.toLowerCase())).toBe(true)
+  })
+
+  it("passes reserve-fund LP pool address in the exclusion set so it is NOT re-flagged", async () => {
+    stubBaseFetchers()
+
+    let capturedExclude: ReadonlySet<string> | undefined
+
+    vi.doMock("@/lib/onchain/untracked-audit", () => ({
+      auditUntrackedHoldings: vi.fn(async (exclude: ReadonlySet<string>) => {
+        capturedExclude = exclude
+        return [] as UntrackedFinding[]
+      }),
+    }))
+
+    const { loadFootprint } = await import("@/lib/views/footprint")
+    await loadFootprint()
+
+    expect(capturedExclude).toBeDefined()
+    // The USDtb/USDC Curve LP (pool = LP token for stableswap-ng) must be excluded
+    expect(capturedExclude!.has(RESERVE_FUND_LP_ADDR)).toBe(true)
   })
 
   it("backing totals (deployedUsd, idle.totalUsd) are UNCHANGED regardless of audit findings", async () => {

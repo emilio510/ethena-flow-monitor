@@ -217,6 +217,61 @@ describe("auditUntrackedHoldings — priced token path", () => {
     expect(f!.valueUsd).toBeGreaterThan(1_000_000)
   })
 
+  it("flags a 6-decimal priced token with balance worth ≥$1M (would have been missed under 1e18 hardcode)", async () => {
+    // 1_500_000 USDC (6-decimal token) @ $1 = $1.5M
+    // raw balance = 1_500_000 * 10**6
+    const rawBalance = BigInt("1500000") * BigInt("1000000") // 1.5e12 = 1_500_000_000_000
+    const rawHex = "0x" + rawBalance.toString(16).padStart(64, "0")
+
+    // Under the old 1e18 hardcode: 1.5e12 / 1e18 * $1 = $0.0015 — below $1M, no alert.
+    // With real 6 decimals:        1.5e12 / 1e6  * $1 = $1.5M   — above $1M, alert fires.
+
+    vi.stubGlobal("fetch", vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        result: {
+          tokenBalances: [
+            { contractAddress: PRICED_TOKEN_ADDR, tokenBalance: rawHex },
+          ],
+        },
+      }),
+    })))
+
+    // Not ERC-4626: first multicall (erc4626ProbeAbi with 4 functions) fails;
+    // second multicall (decimals-only) returns 6.
+    vi.doMock("@/lib/onchain/clients", () => ({
+      getAlchemyUrl: vi.fn(() => "https://eth-mainnet.g.alchemy.com/v2/test-key"),
+      getPublicClient: vi.fn(() => ({
+        multicall: vi.fn(
+          async ({
+            contracts,
+          }: {
+            contracts: Array<{ functionName: string; args?: readonly unknown[] }>
+          }) => {
+            // 4-function ERC-4626 probe → all fail
+            if (contracts.length === 4) {
+              return contracts.map(() => ({ status: "failure" as const, error: new Error("not ERC-4626") }))
+            }
+            // 1-function decimals() call → return 6
+            return [{ status: "success" as const, result: BigInt("6") }]
+          },
+        ),
+      })),
+    }))
+
+    stubPrices(
+      new Map([["eth-mainnet:" + PRICED_TOKEN_ADDR.toLowerCase(), 1.0]]),
+    )
+
+    const { auditUntrackedHoldings } = await import("@/lib/onchain/untracked-audit")
+    const findings = await auditUntrackedHoldings(new Set<string>())
+
+    const f = findings.find((x) => x.address === PRICED_TOKEN_ADDR.toLowerCase())
+    expect(f).toBeDefined()
+    expect(f!.kind).toBe("priced")
+    expect(f!.valueUsd).toBeCloseTo(1_500_000, 0)
+  })
+
   it("does NOT return a finding when the token has no price and is not ERC-4626", async () => {
     // Same large balance — but no price available, so no finding
     const rawHex = "0x" + (BigInt("1000000") * BigInt("10") ** BigInt("18")).toString(16).padStart(64, "0")
