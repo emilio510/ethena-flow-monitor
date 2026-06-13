@@ -1,0 +1,18 @@
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "result": {
+    "id": "u49MwZqu4bHRHRsciaBarHK7JZDYGxuaNnwyMBdEKYk",
+    "content": {
+      "metadata": {
+        "name": "Securitize Tokenized AAA CLO Fund",
+        "symbol": "STAC"
+      }
+    },
+    "interface": "FungibleToken",
+    "token_info": {
+      "symbol": "STAC",
+      "decimals": 6
+    }
+  }
+}
