@@ -37,6 +37,14 @@ const CHAIN_CONFIG: Record<Chain, { path: string; viem: ViemChain }> = {
 
 const cache = new Map<Chain, PublicClient>()
 
+/** Alchemy JSON-RPC URL for the given chain — uses the same key + path as
+ *  `getPublicClient`. Useful for raw Alchemy-extension methods
+ *  (e.g. `alchemy_getTokenBalances`) that aren't exposed via viem. */
+export function getAlchemyUrl(chain: Chain): string {
+  const { path } = CHAIN_CONFIG[chain]
+  return `https://${path}.g.alchemy.com/v2/${env.ALCHEMY_KEY}`
+}
+
 export function getPublicClient(chain: Chain): PublicClient {
   const cached = cache.get(chain)
   if (cached) return cached
