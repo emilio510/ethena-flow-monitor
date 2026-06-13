@@ -66,6 +66,7 @@ export default async function Page() {
     deployedUsd,
     idle,
     recursiveUsd,
+    untrackedHoldings,
   } = footprint
   const onchainBacking = deployedUsd + idle.totalUsd
   // Headline = Ethena's reported total when available, fall back to on-chain.
@@ -186,6 +187,46 @@ export default async function Page() {
             <MonitoredWalletsTable rows={walletInventory} />
           </GlassCard>
         </div>
+        {untrackedHoldings.length > 0 ? (
+          <div className="mt-8">
+            <GlassCard refractive className="p-5">
+              <div className="mb-3 flex items-center gap-2">
+                <Tag tone="warn">Untracked holdings — needs triage</Tag>
+              </div>
+              <p className="mb-3 text-xs text-[var(--color-text-ghost)]">
+                The following EVM token positions are above $1M but are not in
+                the tracked allowlist. They are NOT included in any backing
+                total. Add to <code>config/idle-tokens.ts</code> once confirmed.
+              </p>
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="text-left text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-ghost)]">
+                    <th className="pb-2 pr-4">Symbol / Address</th>
+                    <th className="pb-2 pr-4">Chain</th>
+                    <th className="pb-2 pr-4">Wallet</th>
+                    <th className="pb-2 text-right">Value (USD)</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {untrackedHoldings.map((h, i) => (
+                    <tr key={i} className="border-t border-[var(--color-border)]">
+                      <td className="py-2 pr-4 font-mono text-xs">
+                        {h.symbol}
+                      </td>
+                      <td className="py-2 pr-4 text-xs">{h.chain}</td>
+                      <td className="py-2 pr-4 font-mono text-xs">
+                        {h.wallet.slice(0, 6)}…{h.wallet.slice(-4)}
+                      </td>
+                      <td className="py-2 text-right font-mono text-xs">
+                        {fmtUsd(h.valueUsd)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </GlassCard>
+          </div>
+        ) : null}
         <div className="mt-8">
           <FlowsTable flows={flows} />
         </div>

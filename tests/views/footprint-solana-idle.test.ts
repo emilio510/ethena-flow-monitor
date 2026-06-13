@@ -39,6 +39,9 @@ function stubBaseFetchers() {
       failures: [],
     })),
   }))
+  vi.doMock("@/lib/onchain/untracked-audit", () => ({
+    auditUntrackedHoldings: vi.fn(async () => []),
+  }))
 }
 
 describe("loadFootprint Solana integration", () => {

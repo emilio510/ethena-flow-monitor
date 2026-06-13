@@ -25,6 +25,8 @@ import { getEthenaSolanaPositions } from "@/lib/solana"
 import { getEthenaSolanaIdleBalances } from "@/lib/solana/balances"
 import { SOLANA_WALLETS, KNOWN_SOLANA_WALLET_LABELS } from "@/config/solana-wallets"
 import { flattenWallets, type BackingSnapshot } from "@/lib/ethena"
+import { auditUntrackedHoldings, type UntrackedFinding } from "@/lib/onchain/untracked-audit"
+import { IDLE_TOKENS } from "@/config/idle-tokens"
 
 export type Protocol = "AAVE V3" | "MORPHO" | "KAMINO" | "JUPITER LEND"
 
@@ -99,6 +101,11 @@ export interface FootprintResult {
    *  on View A — the share of Ethena's total backing tied up in recursive
    *  loops, accounting for the idle reserves that don't lever anything. */
   trueRecursionShare: number
+  /** Alert-only: EVM token holdings above $1M that are NOT in the tracked
+   *  allowlist (idle tokens, Morpho vaults, reserve LP). These positions need
+   *  manual triage — they do NOT contribute to any backing or reconciliation
+   *  total. */
+  untrackedHoldings: UntrackedFinding[]
 }
 
 /** Drop dust rows below this threshold so the table only shows meaningful
@@ -395,6 +402,34 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     }
   }
 
+  // ───────────────────── Untracked-holdings audit (alert-only)
+
+  // Build the exclusion set: everything we already track must not be re-flagged.
+  // 1. All idle-allowlist token addresses (all chains, lowercased).
+  // 2. Morpho vault ERC-4626 share addresses (wallets hold these shares;
+  //    they are already counted via the Morpho footprint — MUST exclude to
+  //    avoid double-alerting).
+  // 3. The Maple token is in the idle allowlist so it's covered by (1).
+  const idleTokenAddresses = (
+    Object.values(IDLE_TOKENS) as Array<Array<{ address: string }>>
+  )
+    .flat()
+    .map((t) => t.address.toLowerCase())
+  const morphoVaultAddresses = Array.from(morphoMeta.values()).map((m) =>
+    m.vaultAddress.toLowerCase(),
+  )
+  const auditExclude = new Set<string>([
+    ...idleTokenAddresses,
+    ...morphoVaultAddresses,
+  ])
+
+  const untrackedHoldings = await auditUntrackedHoldings(auditExclude).catch((err) => {
+    console.warn(
+      `[ethena-flow-monitor] auditUntrackedHoldings threw: ${err instanceof Error ? err.message : String(err)}`,
+    )
+    return [] as UntrackedFinding[]
+  })
+
   // ───────────────────── Sort + freshness
 
   const rows = out
@@ -526,5 +561,6 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     idle,
     recursiveUsd,
     trueRecursionShare,
+    untrackedHoldings,
   }
 }
