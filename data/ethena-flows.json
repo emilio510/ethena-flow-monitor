@@ -23818,17 +23818,5 @@
     "classification": "rebalance",
     "confidence": "high",
     "reason": "sent to a known Ethena wallet"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xe6f34b49fe7a3d82d6708aac9fffc62ed1d7f9fecde4c8e52d2225ff25d2d6ac",
-    "timestamp": 1773496547,
-    "from": "0x2d4d2a025b10c09bdbd794b4fce4f7ea8c7d7bb4",
-    "to": "0xf270a1d7c68002da1ec8359f3958d4ec015729de",
-    "asset": "USDtb",
-    "amountUsd": 25000000,
-    "classification": "rebalance",
-    "confidence": "high",
-    "reason": "sent to a known Ethena wallet"
   }
 ]
