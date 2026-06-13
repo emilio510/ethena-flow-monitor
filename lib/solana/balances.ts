@@ -2,12 +2,18 @@
 import "server-only"
 import type { IdleBalanceRow } from "@/lib/onchain/balances"
 import { SOLANA_WALLETS } from "@/config/solana-wallets"
-import { SOLANA_IDLE_TOKENS, type SolanaIdleToken } from "@/config/solana-idle-tokens"
-import { fetchTokenPrices, priceKey, type TokenRef } from "@/lib/onchain/prices"
+import {
+  SOLANA_DEPLOYED_MINTS,
+  SOLANA_PEG_MINTS,
+  SOLANA_DENY_MINTS,
+} from "@/config/solana-known-mints"
+import { fetchPricesBySymbol } from "@/lib/onchain/prices"
 import { fetchJupiterPrices } from "./prices"
+import { fetchAssetIdentities } from "./das"
 import { getTokenBalancesByOwner } from "./rpc"
 
-/** Holdings valued below this (USD) are dropped as dust. */
+/** Holdings valued below this (USD) are dropped as dust — applied AFTER pricing,
+ *  so large-unit-count tokens like STAC are not pre-filtered. */
 const MIN_DUST_USD = 1
 
 export interface SolanaIdleResult {
@@ -21,22 +27,46 @@ export interface SolanaIdleResult {
   failures: Array<{ source: string; reason: string }>
 }
 
+/** Classification of a held mint into a processing bucket. */
+type MintClass =
+  | { kind: "deployed"; symbol: string }
+  | { kind: "peg"; symbol: string }
+  | { kind: "auto" }
+  | { kind: "deny" }
+
+function classifyMint(mint: string): MintClass {
+  if (mint in SOLANA_DENY_MINTS) return { kind: "deny" }
+  if (mint in SOLANA_DEPLOYED_MINTS)
+    return { kind: "deployed", symbol: SOLANA_DEPLOYED_MINTS[mint]!.symbol }
+  if (mint in SOLANA_PEG_MINTS) return { kind: "peg", symbol: SOLANA_PEG_MINTS[mint]! }
+  return { kind: "auto" }
+}
+
 /**
- * Read SPL balances at SOLANA_WALLETS and value them per the registry.
- *  - idle-bucket assets (JAAA, stables) → `rows` + `totalUsd` (reconciliation).
- *  - deployed-bucket assets (jleUSDG vault share) → counted ONLY in
- *    `walletTotalUsd` (inventory), never in `rows`, so the Jupiter footprint
- *    row is not double-counted.
+ * Read SPL balances at SOLANA_WALLETS and auto-discover their identity + price.
  *
- * Pricing: peg → $1; proxyPrice (JAAA) → Alchemy Prices via its Base contract;
- * jupiter (jleUSDG) → Jupiter price API. Partial-tolerant: a per-wallet RPC
- * failure skips that wallet; a missing price EXCLUDES the token (never 0) and
- * records a failure.
+ * Classification per mint:
+ *  - DENY_MINTS    → dropped silently.
+ *  - DEPLOYED_MINTS → deployed bucket; priced via Jupiter (inventory only,
+ *                     never in idle/reconciliation to avoid double-counting
+ *                     the underlying position already in a footprint row).
+ *  - PEG_MINTS     → idle bucket; price = $1.
+ *  - everything else → "auto": identify via DAS getAsset, price via
+ *                     fetchPricesBySymbol(symbol). BOTH must succeed or the
+ *                     token is excluded (never valued at 0) and a failure entry
+ *                     is pushed + console.warn emitted.
+ *
+ * Post-pricing dust floor: holdings worth < $1 are dropped (after valuation,
+ * so large-NAV tokens with a small unit count — like STAC — are never skipped).
+ *
+ * Partial-tolerant: a per-wallet RPC failure skips that wallet and records a
+ * failure entry. The batch DAS and by-symbol price calls cover all wallets in
+ * one round each.
  */
 export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
   const failures: SolanaIdleResult["failures"] = []
 
-  // 1. Read balances per wallet (partial-tolerant).
+  // ── 1. Read balances per wallet (partial-tolerant).
   const perWallet = await Promise.allSettled(
     SOLANA_WALLETS.map(async (address) => ({
       address,
@@ -44,75 +74,135 @@ export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
     })),
   )
 
-  // 2. Sum raw amounts per (wallet, allowlisted mint).
-  const rawByWalletMint = new Map<string, Map<string, bigint>>()
+  // ── 2. Classify every held mint; drop zero balances + DENY mints.
+  //       Collect "auto" mints for batch DAS + by-symbol price lookups.
+  type HeldEntry = {
+    mint: string
+    rawAmount: bigint
+    decimals: number
+    cls: MintClass
+  }
+  const perWalletHeld = new Map<string, HeldEntry[]>()
+  const autoMints = new Set<string>() // mints needing DAS identification
+
   perWallet.forEach((r, i) => {
     const address = SOLANA_WALLETS[i]!
     if (r.status === "rejected") {
       failures.push({ source: `rpc:${address}`, reason: reasonOf(r.reason) })
       return
     }
-    const byMint = new Map<string, bigint>()
+    const held: HeldEntry[] = []
     for (const b of r.value.balances) {
-      if (!SOLANA_IDLE_TOKENS[b.mint]) continue // allowlist: drops dust + unknown
-      byMint.set(b.mint, (byMint.get(b.mint) ?? BigInt(0)) + b.rawAmount)
+      if (b.rawAmount === BigInt(0)) continue
+      const cls = classifyMint(b.mint)
+      if (cls.kind === "deny") continue
+      held.push({ mint: b.mint, rawAmount: b.rawAmount, decimals: b.decimals, cls })
+      if (cls.kind === "auto") autoMints.add(b.mint)
     }
-    rawByWalletMint.set(address, byMint)
+    perWalletHeld.set(address, held)
   })
 
-  // 3. Collect held mints, then batch-fetch prices by source.
-  const heldMints = new Set<string>()
-  for (const byMint of rawByWalletMint.values()) for (const m of byMint.keys()) heldMints.add(m)
+  // ── 3. Batch: identify auto mints via DAS + fetch Jupiter prices for deployed.
+  const deployedMintAddresses = [...new Set(
+    [...perWalletHeld.values()]
+      .flat()
+      .filter((e) => e.cls.kind === "deployed")
+      .map((e) => e.mint),
+  )]
 
-  const proxyRefs: TokenRef[] = []
-  const jupiterMints: string[] = []
-  for (const mint of heldMints) {
-    const p = SOLANA_IDLE_TOKENS[mint]!.pricing
-    if (p.kind === "proxyPrice") proxyRefs.push({ network: p.network, address: p.address })
-    else if (p.kind === "jupiter") jupiterMints.push(mint)
-  }
+  const [identities, jupiterPrices] = await Promise.all([
+    autoMints.size > 0
+      ? fetchAssetIdentities([...autoMints]).catch((err) => {
+          failures.push({ source: "das", reason: reasonOf(err) })
+          return new Map<string, { symbol: string; name: string }>()
+        })
+      : Promise.resolve(new Map<string, { symbol: string; name: string }>()),
+    deployedMintAddresses.length > 0
+      ? fetchJupiterPrices(deployedMintAddresses).catch((err) => {
+          failures.push({ source: "jupiter-prices", reason: reasonOf(err) })
+          return new Map<string, number>()
+        })
+      : Promise.resolve(new Map<string, number>()),
+  ])
 
-  let proxyPrices = new Map<string, number>()
-  if (proxyRefs.length > 0) {
-    try {
-      proxyPrices = await fetchTokenPrices(proxyRefs)
-    } catch (err) {
-      failures.push({ source: "alchemy-prices", reason: reasonOf(err) })
-    }
-  }
-  let jupiterPrices = new Map<string, number>()
-  if (jupiterMints.length > 0) {
-    try {
-      jupiterPrices = await fetchJupiterPrices(jupiterMints)
-    } catch (err) {
-      failures.push({ source: "jupiter-prices", reason: reasonOf(err) })
-    }
-  }
+  // ── 4. Fetch by-symbol prices for all auto-identified symbols.
+  const autoSymbols = [...new Set(
+    [...autoMints]
+      .map((m) => identities.get(m)?.symbol)
+      .filter((s): s is string => s !== undefined),
+  )]
 
-  // 4. Value -> idle-bucket per-symbol rows + per-wallet all-bucket total.
+  const symbolPrices =
+    autoSymbols.length > 0
+      ? await fetchPricesBySymbol(autoSymbols).catch((err) => {
+          failures.push({ source: "alchemy-prices-by-symbol", reason: reasonOf(err) })
+          return new Map<string, number>()
+        })
+      : new Map<string, number>()
+
+  // ── 5. Value each held entry, aggregate idle rows + per-wallet totals.
   const bySymbol = new Map<string, { usd: number; approx: boolean }>()
   const walletTotalUsd: SolanaIdleResult["walletTotalUsd"] = []
 
-  for (const [address, byMint] of rawByWalletMint) {
+  for (const [address, held] of perWalletHeld) {
     let walletUsd = 0
-    for (const [mint, raw] of byMint) {
-      const tok = SOLANA_IDLE_TOKENS[mint]!
-      const priced = valueToken(tok, raw, proxyPrices, jupiterPrices)
-      if (priced === null) {
-        console.warn(`[ethena-flow-monitor] no price for ${tok.symbol} (${mint}) — excluding`)
-        failures.push({ source: `price:${tok.symbol}`, reason: "missing price" })
+
+    for (const { mint, rawAmount, decimals, cls } of held) {
+      const amount = Number(rawAmount) / 10 ** decimals
+
+      if (cls.kind === "deployed") {
+        const price = jupiterPrices.get(mint)
+        if (price === undefined) {
+          console.warn(
+            `[ethena-flow-monitor] no Jupiter price for deployed ${cls.symbol} (${mint}) — excluding`,
+          )
+          failures.push({ source: `price:deployed:${cls.symbol}`, reason: "missing Jupiter price" })
+          continue
+        }
+        const usd = amount * price
+        if (usd < MIN_DUST_USD) continue
+        walletUsd += usd // inventory only — NOT in idle rows
         continue
       }
-      if (priced.usd < MIN_DUST_USD) continue
-      walletUsd += priced.usd // inventory total: every bucket
-      if (tok.bucket === "idle") {
-        const prev = bySymbol.get(tok.symbol)
-        bySymbol.set(tok.symbol, {
-          usd: (prev?.usd ?? 0) + priced.usd,
-          approx: (prev?.approx ?? false) || priced.approx,
-        })
+
+      if (cls.kind === "peg") {
+        const usd = amount // $1 per unit
+        if (usd < MIN_DUST_USD) continue
+        walletUsd += usd
+        const prev = bySymbol.get(cls.symbol)
+        bySymbol.set(cls.symbol, { usd: (prev?.usd ?? 0) + usd, approx: prev?.approx ?? false })
+        continue
       }
+
+      // "auto" — must have both identity AND price to be valued
+      const identity = identities.get(mint)
+      if (identity === undefined) {
+        console.warn(
+          `[ethena-flow-monitor] DAS could not identify mint ${mint} — excluding from valuation`,
+        )
+        failures.push({ source: `das:${mint}`, reason: "unidentified mint" })
+        continue
+      }
+
+      const price = symbolPrices.get(identity.symbol.toUpperCase())
+      if (price === undefined) {
+        console.warn(
+          `[ethena-flow-monitor] no by-symbol price for ${identity.symbol} (${mint}) — excluding`,
+        )
+        failures.push({ source: `price:${identity.symbol}`, reason: "missing by-symbol price" })
+        continue
+      }
+
+      const usd = amount * price
+      if (usd < MIN_DUST_USD) continue
+      walletUsd += usd
+      const prev = bySymbol.get(identity.symbol)
+      bySymbol.set(identity.symbol, {
+        usd: (prev?.usd ?? 0) + usd,
+        approx: true, // auto-discovered tokens are always approx
+      })
     }
+
     walletTotalUsd.push({ address, totalUsd: walletUsd })
   }
 
@@ -125,28 +215,6 @@ export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
     totalUsd: rows.reduce((a, r) => a + r.totalUsd, 0),
     walletTotalUsd,
     failures,
-  }
-}
-
-/** Returns null when a required price is missing (caller excludes the token). */
-function valueToken(
-  tok: SolanaIdleToken,
-  raw: bigint,
-  proxyPrices: Map<string, number>,
-  jupiterPrices: Map<string, number>,
-): { usd: number; approx: boolean } | null {
-  const amount = Number(raw) / 10 ** tok.decimals
-  switch (tok.pricing.kind) {
-    case "peg":
-      return { usd: amount, approx: false }
-    case "proxyPrice": {
-      const price = proxyPrices.get(priceKey(tok.pricing.network, tok.pricing.address))
-      return price === undefined ? null : { usd: amount * price, approx: tok.pricing.approx ?? false }
-    }
-    case "jupiter": {
-      const price = jupiterPrices.get(tok.mint)
-      return price === undefined ? null : { usd: amount * price, approx: false }
-    }
   }
 }
 

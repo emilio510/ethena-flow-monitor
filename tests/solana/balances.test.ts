@@ -3,71 +3,235 @@ import { describe, it, expect, vi, beforeEach } from "vitest"
 beforeEach(() => {
   vi.resetModules()
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
+  vi.stubEnv("ALCHEMY_KEY", "test-key")
+  vi.stubEnv("TOKENLOGIC_API_KEY", "test")
 })
 
-const C23 = "C23FGxQB2LsoTbZsQr5w3R7b3sw5saxPLGJ4ujvyH34L"
-const FAQ = "4FaQc6QZ5skFjcDF64mKcXRhtCCsnArZcr1xumPNrbtN"
+const STAC_MINT = "u49MwZqu4bHRHRsciaBarHK7JZDYGxuaNnwyMBdEKYk"
+const JLEUSDG_MINT = "Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc"
+const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
+const DENY_MINT = "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
+// A mint we can't identify or price — should be excluded + failure + warn
+const MYSTERY_MINT = "MysteryMintBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 
-describe("getEthenaSolanaIdleBalances", () => {
-  it("idle rows hold JAAA only; jleUSDG is deployed-bucket (inventory only)", async () => {
+const FAQ = "4FaQc6QZ5skFjcDF64mKcXRhtCCsnArZcr1xumPNrbtN"
+const C23 = "C23FGxQB2LsoTbZsQr5w3R7b3sw5saxPLGJ4ujvyH34L"
+
+// STAC: 244961279015 base units, decimals 6 → 244961.279015 STAC × $1020.44 ≈ $249,977,xxx
+const STAC_RAW = BigInt("244961279015")
+const STAC_DECIMALS = 6
+const STAC_PRICE = 1020.44
+const STAC_EXPECTED_USD = (Number(STAC_RAW) / 10 ** STAC_DECIMALS) * STAC_PRICE
+
+describe("getEthenaSolanaIdleBalances — STAC auto-discovery", () => {
+  it("STAC (unknown mint) → DAS-identified + by-symbol priced → idle row ~$250M, approx:true", async () => {
+    vi.doMock("@/lib/solana/rpc", () => ({
+      getTokenBalancesByOwner: vi.fn(async (owner: string) => {
+        if (owner === FAQ) {
+          return [{ mint: STAC_MINT, rawAmount: STAC_RAW, decimals: STAC_DECIMALS }]
+        }
+        return []
+      }),
+    }))
+    vi.doMock("@/lib/solana/das", () => ({
+      fetchAssetIdentities: vi.fn(async () =>
+        new Map([[STAC_MINT, { symbol: "STAC", name: "Securitize Tokenized AAA CLO Fund" }]]),
+      ),
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      fetchPricesBySymbol: vi.fn(async () => new Map([["STAC", STAC_PRICE]])),
+    }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () => new Map()),
+    }))
+
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+
+    const stacRow = res.rows.find((r) => r.symbol === "STAC")
+    expect(stacRow, "STAC should appear as an idle row").toBeDefined()
+    expect(stacRow?.totalUsd).toBeCloseTo(STAC_EXPECTED_USD, -3) // within ~$1k
+    expect(stacRow?.approx).toBe(true)
+    expect(res.failures).toHaveLength(0)
+  })
+
+  it("jleUSDG (DEPLOYED mint) → NOT in rows but counted in walletTotalUsd", async () => {
+    const JLEUSDG_RAW = BigInt("250930298050455")
+    const JLEUSDG_PRICE = 1.0020312
+    vi.doMock("@/lib/solana/rpc", () => ({
+      getTokenBalancesByOwner: vi.fn(async (owner: string) => {
+        if (owner === C23) {
+          return [{ mint: JLEUSDG_MINT, rawAmount: JLEUSDG_RAW, decimals: 6 }]
+        }
+        return []
+      }),
+    }))
+    vi.doMock("@/lib/solana/das", () => ({
+      fetchAssetIdentities: vi.fn(async () => new Map()),
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      fetchPricesBySymbol: vi.fn(async () => new Map()),
+    }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () => new Map([[JLEUSDG_MINT, JLEUSDG_PRICE]])),
+    }))
+
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+
+    // jleUSDG must NOT appear as an idle row
+    expect(res.rows.find((r) => r.symbol === "jleUSDG")).toBeUndefined()
+    expect(res.totalUsd).toBe(0) // no idle rows
+
+    // but must be counted in the wallet inventory
+    const c23 = res.walletTotalUsd.find((w) => w.address === C23)
+    expect(c23).toBeDefined()
+    expect(c23?.totalUsd).toBeCloseTo(
+      (Number(JLEUSDG_RAW) / 10 ** 6) * JLEUSDG_PRICE,
+      0,
+    )
+  })
+
+  it("USDC dust (0.0029 USD) → dropped after pricing (<$1 floor)", async () => {
+    // 2900 base units, decimals 6 → $0.0029
+    vi.doMock("@/lib/solana/rpc", () => ({
+      getTokenBalancesByOwner: vi.fn(async () => [
+        { mint: USDC_MINT, rawAmount: BigInt("2900"), decimals: 6 },
+      ]),
+    }))
+    vi.doMock("@/lib/solana/das", () => ({
+      fetchAssetIdentities: vi.fn(async () => new Map()),
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      fetchPricesBySymbol: vi.fn(async () => new Map()),
+    }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () => new Map()),
+    }))
+
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+
+    expect(res.rows.find((r) => r.symbol === "USDC")).toBeUndefined()
+    expect(res.totalUsd).toBe(0)
+  })
+
+  it("deny-listed mint → silently dropped (no row, no failure)", async () => {
+    vi.doMock("@/lib/solana/rpc", () => ({
+      getTokenBalancesByOwner: vi.fn(async () => [
+        { mint: DENY_MINT, rawAmount: BigInt("1000000000"), decimals: 6 },
+      ]),
+    }))
+    vi.doMock("@/lib/solana/das", () => ({
+      fetchAssetIdentities: vi.fn(async () => new Map()),
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      fetchPricesBySymbol: vi.fn(async () => new Map()),
+    }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () => new Map()),
+    }))
+
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+
+    expect(res.rows).toHaveLength(0)
+    expect(res.failures).toHaveLength(0)
+  })
+
+  it("unidentified mint with big balance → excluded + failure entry + console.warn (NOT valued)", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.doMock("@/lib/solana/rpc", () => ({
+      getTokenBalancesByOwner: vi.fn(async () => [
+        { mint: MYSTERY_MINT, rawAmount: BigInt("100000000000000"), decimals: 6 },
+      ]),
+    }))
+    // DAS returns no identity for this mint
+    vi.doMock("@/lib/solana/das", () => ({
+      fetchAssetIdentities: vi.fn(async () => new Map()),
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      fetchPricesBySymbol: vi.fn(async () => new Map()),
+    }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () => new Map()),
+    }))
+
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+
+    expect(res.rows).toHaveLength(0)
+    expect(res.totalUsd).toBe(0)
+    expect(res.failures.length).toBeGreaterThan(0)
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it("unpriced-but-identified mint with big balance → excluded + failure entry + console.warn", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.doMock("@/lib/solana/rpc", () => ({
+      getTokenBalancesByOwner: vi.fn(async () => [
+        { mint: MYSTERY_MINT, rawAmount: BigInt("100000000000000"), decimals: 6 },
+      ]),
+    }))
+    vi.doMock("@/lib/solana/das", () => ({
+      // DAS identifies it but by-symbol has no price
+      fetchAssetIdentities: vi.fn(async () =>
+        new Map([[MYSTERY_MINT, { symbol: "MYSTERY", name: "Mystery Token" }]]),
+      ),
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      fetchPricesBySymbol: vi.fn(async () => new Map()), // empty — no price
+    }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () => new Map()),
+    }))
+
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+
+    expect(res.rows).toHaveLength(0)
+    expect(res.totalUsd).toBe(0)
+    expect(res.failures.length).toBeGreaterThan(0)
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it("walletTotalUsd includes both idle and deployed value for a mixed wallet", async () => {
     vi.doMock("@/lib/solana/rpc", () => ({
       getTokenBalancesByOwner: vi.fn(async (owner: string) => {
         if (owner === FAQ) {
           return [
-            { mint: "AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG", rawAmount: BigInt("192821471943242"), decimals: 6 },
-            { mint: "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH", rawAmount: BigInt("32741"), decimals: 6 },
+            { mint: STAC_MINT, rawAmount: STAC_RAW, decimals: STAC_DECIMALS },
+            { mint: JLEUSDG_MINT, rawAmount: BigInt("1000000000"), decimals: 6 },
           ]
         }
-        return [{ mint: "Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc", rawAmount: BigInt("250930298050455"), decimals: 6 }]
+        return []
       }),
     }))
-    vi.doMock("@/lib/onchain/prices", () => ({
-      fetchTokenPrices: vi.fn(async () =>
-        new Map([["base-mainnet:0x5a0f93d040de44e78f251b03c43be9cf317dcf64", 1.03757]]),
+    vi.doMock("@/lib/solana/das", () => ({
+      fetchAssetIdentities: vi.fn(async () =>
+        new Map([[STAC_MINT, { symbol: "STAC", name: "Securitize Tokenized AAA CLO Fund" }]]),
       ),
-      priceKey: (n: string, a: string) => `${n}:${a.toLowerCase()}`,
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      fetchPricesBySymbol: vi.fn(async () => new Map([["STAC", STAC_PRICE]])),
     }))
     vi.doMock("@/lib/solana/prices", () => ({
-      fetchJupiterPrices: vi.fn(async () =>
-        new Map([["Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc", 1.0020312]]),
-      ),
+      fetchJupiterPrices: vi.fn(async () => new Map([[JLEUSDG_MINT, 1.002]])),
     }))
 
     const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
     const res = await getEthenaSolanaIdleBalances()
 
-    // idle (reconciliation) side: JAAA only, NOT jleUSDG.
-    expect(res.rows.map((r) => r.symbol).sort()).toEqual(["JAAA"])
-    const jaaa = res.rows.find((r) => r.symbol === "JAAA")!
-    expect(jaaa.totalUsd).toBeCloseTo(192821471.943242 * 1.03757, 0)
-    expect(jaaa.approx).toBe(true)
-    expect(res.totalUsd).toBeCloseTo(jaaa.totalUsd, 0)
+    const faq = res.walletTotalUsd.find((w) => w.address === FAQ)
+    expect(faq).toBeDefined()
+    // Should include idle (STAC) + deployed (jleUSDG)
+    const expectedIdle = STAC_EXPECTED_USD
+    const expectedDeployed = (Number(BigInt("1000000000")) / 10 ** 6) * 1.002
+    expect(faq?.totalUsd).toBeCloseTo(expectedIdle + expectedDeployed, -3)
 
-    // inventory side: per-wallet on-chain total INCLUDING the deployed jleUSDG.
-    const c23 = res.walletTotalUsd.find((w) => w.address === C23)!
-    expect(c23.totalUsd).toBeCloseTo(250930298.050455 * 1.0020312, 0) // ~$251.4M
-    const faq = res.walletTotalUsd.find((w) => w.address === FAQ)!
-    expect(faq.totalUsd).toBeCloseTo(jaaa.totalUsd, 0) // ~$200M
-  })
-
-  it("excludes a token (does not zero it) when its price is missing", async () => {
-    vi.doMock("@/lib/solana/rpc", () => ({
-      getTokenBalancesByOwner: vi.fn(async () => [
-        { mint: "AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG", rawAmount: BigInt("192821471943242"), decimals: 6 },
-      ]),
-    }))
-    vi.doMock("@/lib/onchain/prices", () => ({
-      fetchTokenPrices: vi.fn(async () => new Map()), // no price returned
-      priceKey: (n: string, a: string) => `${n}:${a.toLowerCase()}`,
-    }))
-    vi.doMock("@/lib/solana/prices", () => ({ fetchJupiterPrices: vi.fn(async () => new Map()) }))
-    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
-
-    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
-    const res = await getEthenaSolanaIdleBalances()
-
-    expect(res.rows.some((r) => r.symbol === "JAAA")).toBe(false)
-    expect(res.failures.length).toBeGreaterThan(0)
-    expect(warn).toHaveBeenCalled()
+    // jleUSDG still not in idle rows
+    expect(res.rows.find((r) => r.symbol === "jleUSDG")).toBeUndefined()
+    expect(res.rows.find((r) => r.symbol === "STAC")).toBeDefined()
   })
 })
