@@ -235,3 +235,141 @@ describe("getEthenaSolanaIdleBalances — STAC auto-discovery", () => {
     expect(res.rows.find((r) => r.symbol === "STAC")).toBeDefined()
   })
 })
+
+// Canonical-mint guard tests (SOLANA_RWA_MINTS)
+// A spoofed mint claiming a known RWA symbol must be REJECTED.
+// A genuinely new unknown symbol must route to failures (untracked alert).
+const SPOOFED_STAC_MINT = "SpoofMintAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+
+describe("getEthenaSolanaIdleBalances — canonical-mint guard", () => {
+  it("STAC at its canonical mint → still valued idle ~$250M, approx:true (regression)", async () => {
+    vi.doMock("@/lib/solana/rpc", () => ({
+      getTokenBalancesByOwner: vi.fn(async (owner: string) => {
+        if (owner === FAQ) {
+          return [{ mint: STAC_MINT, rawAmount: STAC_RAW, decimals: STAC_DECIMALS }]
+        }
+        return []
+      }),
+    }))
+    vi.doMock("@/lib/solana/das", () => ({
+      fetchAssetIdentities: vi.fn(async () =>
+        new Map([[STAC_MINT, { symbol: "STAC", name: "Securitize Tokenized AAA CLO Fund" }]]),
+      ),
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      fetchPricesBySymbol: vi.fn(async () => new Map([["STAC", STAC_PRICE]])),
+    }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () => new Map()),
+    }))
+
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+
+    const stacRow = res.rows.find((r) => r.symbol === "STAC")
+    expect(stacRow, "canonical STAC must still produce an idle row").toBeDefined()
+    expect(stacRow?.totalUsd).toBeCloseTo(STAC_EXPECTED_USD, -3)
+    expect(stacRow?.approx).toBe(true)
+    expect(res.failures).toHaveLength(0)
+  })
+
+  it("spoofed mint claiming 'STAC' → REJECTED: not in rows, failure recorded, console.warn called", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    vi.doMock("@/lib/solana/rpc", () => ({
+      getTokenBalancesByOwner: vi.fn(async (owner: string) => {
+        if (owner === FAQ) {
+          // different mint, DAS claims symbol "STAC"
+          return [{ mint: SPOOFED_STAC_MINT, rawAmount: STAC_RAW, decimals: STAC_DECIMALS }]
+        }
+        return []
+      }),
+    }))
+    vi.doMock("@/lib/solana/das", () => ({
+      fetchAssetIdentities: vi.fn(async () =>
+        new Map([[SPOOFED_STAC_MINT, { symbol: "STAC", name: "Fake STAC" }]]),
+      ),
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      // price call should NOT happen for the spoofed mint, but even if it does,
+      // the result must not appear in rows
+      fetchPricesBySymbol: vi.fn(async () => new Map([["STAC", STAC_PRICE]])),
+    }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () => new Map()),
+    }))
+
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+
+    expect(res.rows.find((r) => r.symbol === "STAC")).toBeUndefined()
+    expect(res.totalUsd).toBe(0)
+    expect(res.failures.length).toBeGreaterThan(0)
+    const spoof = res.failures.find((f) => f.source.includes("spoof"))
+    expect(spoof, "failure source must include 'spoof'").toBeDefined()
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it("genuinely new symbol 'FOO' (not in SOLANA_RWA_MINTS) → NOT valued, routed to failures as untracked, warn called", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    const FOO_MINT = "FooMintCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC"
+    vi.doMock("@/lib/solana/rpc", () => ({
+      getTokenBalancesByOwner: vi.fn(async (owner: string) => {
+        if (owner === FAQ) {
+          return [{ mint: FOO_MINT, rawAmount: BigInt("5000000000"), decimals: 6 }]
+        }
+        return []
+      }),
+    }))
+    vi.doMock("@/lib/solana/das", () => ({
+      fetchAssetIdentities: vi.fn(async () =>
+        new Map([[FOO_MINT, { symbol: "FOO", name: "Foo Protocol Token" }]]),
+      ),
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      // by-symbol returns a price for FOO — but it must still be excluded (untracked symbol)
+      fetchPricesBySymbol: vi.fn(async () => new Map([["FOO", 10.0]])),
+    }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () => new Map()),
+    }))
+
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+
+    expect(res.rows.find((r) => r.symbol === "FOO")).toBeUndefined()
+    expect(res.totalUsd).toBe(0)
+    const untracked = res.failures.find((f) => f.source.includes("untracked"))
+    expect(untracked, "failure source must include 'untracked'").toBeDefined()
+    expect(warn).toHaveBeenCalled()
+  })
+
+  it("approx flag is sticky across wallet iterations — second wallet with same symbol preserves approx:true", async () => {
+    // Two wallets each hold STAC (canonical mint). approx must be true on the aggregated row
+    // regardless of wallet iteration order.
+    vi.doMock("@/lib/solana/rpc", () => ({
+      getTokenBalancesByOwner: vi.fn(async () => [
+        { mint: STAC_MINT, rawAmount: BigInt("100000000000"), decimals: STAC_DECIMALS },
+      ]),
+    }))
+    vi.doMock("@/lib/solana/das", () => ({
+      fetchAssetIdentities: vi.fn(async () =>
+        new Map([[STAC_MINT, { symbol: "STAC", name: "Securitize Tokenized AAA CLO Fund" }]]),
+      ),
+    }))
+    vi.doMock("@/lib/onchain/prices", () => ({
+      fetchPricesBySymbol: vi.fn(async () => new Map([["STAC", STAC_PRICE]])),
+    }))
+    vi.doMock("@/lib/solana/prices", () => ({
+      fetchJupiterPrices: vi.fn(async () => new Map()),
+    }))
+
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+
+    const stacRow = res.rows.find((r) => r.symbol === "STAC")
+    expect(stacRow).toBeDefined()
+    // approx must be sticky — true because the auto path produced it,
+    // even when aggregated across wallets
+    expect(stacRow?.approx).toBe(true)
+  })
+})

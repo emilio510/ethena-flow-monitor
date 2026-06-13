@@ -76,6 +76,13 @@ const BySymbolPricesResponse = z.object({
  *
  * Use for Solana RWA tokens (STAC, JAAA) that Alchemy cannot price by address.
  * Sends one `symbols` query-param per symbol in a single GET request.
+ *
+ * IMPORTANT — symbol uniqueness assumption: Alchemy's by-symbol endpoint has no
+ * network qualifier. It assumes each symbol string is globally unambiguous across
+ * all chains. A crafted airdrop token whose DAS metadata advertises a colliding
+ * real symbol (e.g. "STAC") would receive the genuine token's price. Callers
+ * MUST guard the symbol→mint mapping themselves before treating the price as
+ * valid — `lib/solana/balances.ts` does this via `SOLANA_RWA_MINTS`.
  */
 export async function fetchPricesBySymbol(symbols: string[]): Promise<Map<string, number>> {
   const out = new Map<string, number>()

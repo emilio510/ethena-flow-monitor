@@ -37,3 +37,15 @@ export const SOLANA_DENY_MINTS: Record<string, string> = {
   "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH":
     "sub-dollar dust stable held by both wallets — below the $1 dust floor",
 }
+
+/**
+ * RWA tokens we AUTO-VALUE: symbol (UPPER) -> the ONE canonical mint allowed to
+ * claim it. A token whose DAS symbol matches a key but whose mint != the value
+ * is rejected as spoofed and pushed to failures (source: `spoof:<sym>`).
+ * A symbol NOT in this map is a genuinely-new asset and is NOT auto-valued —
+ * it routes to failures (source: `untracked:<sym>`) for human confirmation.
+ */
+export const SOLANA_RWA_MINTS: Record<string, string> = {
+  STAC: "u49MwZqu4bHRHRsciaBarHK7JZDYGxuaNnwyMBdEKYk",
+  JAAA: "AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG",
+}

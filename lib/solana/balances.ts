@@ -6,6 +6,7 @@ import {
   SOLANA_DEPLOYED_MINTS,
   SOLANA_PEG_MINTS,
   SOLANA_DENY_MINTS,
+  SOLANA_RWA_MINTS,
 } from "@/config/solana-known-mints"
 import { fetchPricesBySymbol } from "@/lib/onchain/prices"
 import { fetchJupiterPrices } from "./prices"
@@ -184,7 +185,42 @@ export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
         continue
       }
 
-      const price = symbolPrices.get(identity.symbol.toUpperCase())
+      const sym = identity.symbol.toUpperCase()
+
+      // ── Canonical-mint guard ──────────────────────────────────────────────
+      // If the symbol is a known RWA, the mint must match exactly. A different
+      // mint claiming the same symbol is a spam/airdrop spoof: reject loudly.
+      if (sym in SOLANA_RWA_MINTS) {
+        if (mint !== SOLANA_RWA_MINTS[sym]) {
+          console.warn(
+            `[ethena-flow-monitor] spoof detected: mint ${mint} claims symbol ${sym} ` +
+              `but canonical mint is ${SOLANA_RWA_MINTS[sym]} — excluding`,
+          )
+          failures.push({
+            source: `spoof:${sym}`,
+            reason: `non-canonical mint ${mint} claimed symbol ${sym}`,
+          })
+          continue
+        }
+        // Canonical mint — fall through to normal pricing below.
+      } else {
+        // Symbol is not in the approved RWA map. This is a genuinely-new asset.
+        // Do NOT auto-value it; route to failures so a human can confirm.
+        const approxUsd = symbolPrices.get(sym)
+        const approxNote = approxUsd !== undefined ? ` (approx USD: ${(amount * approxUsd).toFixed(2)})` : ""
+        console.warn(
+          `[ethena-flow-monitor] untracked symbol ${sym} (mint ${mint})${approxNote} — ` +
+            `add to SOLANA_RWA_MINTS to auto-value`,
+        )
+        failures.push({
+          source: `untracked:${sym}`,
+          reason: `symbol not in SOLANA_RWA_MINTS; mint ${mint}${approxNote}`,
+        })
+        continue
+      }
+      // ─────────────────────────────────────────────────────────────────────
+
+      const price = symbolPrices.get(sym)
       if (price === undefined) {
         console.warn(
           `[ethena-flow-monitor] no by-symbol price for ${identity.symbol} (${mint}) — excluding`,
@@ -199,7 +235,8 @@ export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
       const prev = bySymbol.get(identity.symbol)
       bySymbol.set(identity.symbol, {
         usd: (prev?.usd ?? 0) + usd,
-        approx: true, // auto-discovered tokens are always approx
+        // approx is sticky: once true, stays true regardless of iteration order
+        approx: (prev?.approx ?? false) || true,
       })
     }
 
