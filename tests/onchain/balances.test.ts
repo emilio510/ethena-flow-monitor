@@ -223,6 +223,45 @@ describe("getEthenaIdleBalances — regression: stable (1:1) path unchanged", ()
 })
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe("getEthenaIdleBalances — Maple ERC4626 (MPLhysUSDC1)", () => {
+  it("values MPLhysUSDC1 via convertToAssets (~$50M not $39M) and rows under its own symbol", async () => {
+    // MPLhysUSDC1: 39_027_545 shares × 1.2814 USDC/share ≈ $50_020_000
+    // Raw: 39_027_545e6 (6 decimals) shares
+    // convertToAssets returns 50_020_000e6 USDC underlying (6 decimals)
+    const MAPLE = "0xc39a5a616f0ad1ff45077fa2de3f79ab8eb8b8b9"
+    const rawShares = BigInt("39027545") * BigInt("1000000")       // 39_027_545e6
+    const underlyingRaw = BigInt("50020000") * BigInt("1000000")   // 50_020_000e6
+
+    const pricesSpy = vi.fn().mockResolvedValue(new Map())
+    vi.doMock("@/lib/onchain/prices", () => ({
+      fetchTokenPrices: pricesSpy,
+      priceKey: (network: string, address: string) =>
+        `${network}:${address.toLowerCase()}`,
+    }))
+    stubReserveFund()
+    stubMulticall(
+      new Map([
+        [`${MAPLE.toLowerCase()}:${BACKING_WALLET.toLowerCase()}`, rawShares],
+      ]),
+      new Map([[MAPLE.toLowerCase(), underlyingRaw]]),
+    )
+
+    const { getEthenaIdleBalances } = await import("@/lib/onchain/balances")
+    const result = await getEthenaIdleBalances()
+
+    const maple = result.rows.find((r) => r.symbol === "MPLhysUSDC1")
+    expect(maple).toBeDefined()
+    // Must use convertToAssets value (~$50M), not raw share count (~$39M)
+    expect(maple!.totalUsd).toBeGreaterThan(49_000_000)
+    expect(maple!.totalUsd).toBeCloseTo(50_020_000, 0)
+    expect(maple!.isErc4626).toBe(true)
+    expect(maple!.approx).toBeFalsy()
+    // Must NOT fold into a USDC row
+    expect(result.rows.find((r) => r.symbol === "USDC")).toBeUndefined()
+  })
+})
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe("getEthenaIdleBalances — regression: ERC4626 (convertToAssets) path unchanged", () => {
   it("unwraps an ERC4626 vault via convertToAssets", async () => {
     // sUSDe on ethereum: 100e18 shares → convertToAssets → 105e18 underlying

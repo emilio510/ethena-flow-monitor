@@ -32,6 +32,7 @@ export const IDLE_TOKENS: Record<Chain, IdleToken[]> = {
     { symbol: "PYUSD",  address: "0x6c3ea9036406852006290770BEdFcAbA0e23A0e8", decimals: 6  },
     { symbol: "USDS",   address: "0xdC035D45d973E3EC169d2276DDab16f1e407384F", decimals: 18 },
     { symbol: "USDm",   address: "0xec2af1c8b110a61fd9c3fa6a554a031ca9943926", decimals: 18 },
+    { symbol: "MPLhysUSDC1", address: "0xc39a5a616f0ad1ff45077fa2de3f79ab8eb8b8b9", decimals: 6, isErc4626: true },
   ],
   base: [
     { symbol: "USDC",   address: "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913", decimals: 6  },
