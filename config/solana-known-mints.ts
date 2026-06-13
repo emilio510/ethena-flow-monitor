@@ -11,9 +11,12 @@
  * SOLANA_PEG_MINTS: Well-known stablecoins valued at a hard $1 peg.
  *   More robust than a live symbol lookup for assets we know are pegged.
  *
- * SOLANA_DENY_MINTS: Confirmed spam / dust mints to skip outright.
- *   The post-pricing $1 dust floor also catches most spam, but an explicit
- *   deny list handles mints we want to skip even before DAS identification.
+ * SOLANA_DENY_MINTS: VERIFIED spam mints to skip before DAS identification.
+ *   Only list a mint here if it is confirmed junk with NO legitimate value.
+ *   NEVER deny-list a mint just because its balance is small right now — a real
+ *   stablecoin balance can grow (USDG was wrongly denied here as "dust" when it
+ *   was 0.35 units, then grew to ~$600K). Unknown mints are surfaced by the
+ *   `untracked:` alert + the $1 dust floor; that is the safety net, not denial.
  */
 
 export const SOLANA_DEPLOYED_MINTS: Record<string, { symbol: string; price: { kind: "jupiter" } }> =
@@ -29,14 +32,15 @@ export const SOLANA_DEPLOYED_MINTS: Record<string, { symbol: string; price: { ki
 /** Mints valued at a hard $1 USD peg. Keyed by mint address, value is the symbol. */
 export const SOLANA_PEG_MINTS: Record<string, string> = {
   EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v: "USDC",
-  // Add USDG / PYUSD / USDe Solana mints here as confirmed
+  // USDG = "Global Dollar" (Paxos) on Solana. Ethena holds idle USDG at the
+  // omnibus wallets; was previously (wrongly) deny-listed as dust.
+  "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH": "USDG",
+  // Add PYUSD / USDe Solana mints here as confirmed.
 }
 
-/** Mints to skip outright. Value is the reason string for documentation. */
-export const SOLANA_DENY_MINTS: Record<string, string> = {
-  "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH":
-    "sub-dollar dust stable held by both wallets — below the $1 dust floor",
-}
+/** VERIFIED spam mints to skip outright (value = reason). Empty today — see the
+ *  header note: do NOT deny a mint merely for a small current balance. */
+export const SOLANA_DENY_MINTS: Record<string, string> = {}
 
 /**
  * RWA tokens we AUTO-VALUE: symbol (UPPER) -> the ONE canonical mint allowed to

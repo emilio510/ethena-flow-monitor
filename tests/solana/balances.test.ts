@@ -11,7 +11,7 @@ beforeEach(() => {
 const STAC_MINT = "u49MwZqu4bHRHRsciaBarHK7JZDYGxuaNnwyMBdEKYk"
 const JLEUSDG_MINT = "Bd2wJsmaF3YKC6fKLo4AFQDYaFEzWR6SNvoxvTnA6dXc"
 const USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
-const DENY_MINT = "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
+const USDG_MINT = "2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"
 // A mint we can't identify or price — should be excluded + failure + warn
 const MYSTERY_MINT = "MysteryMintBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB"
 
@@ -117,11 +117,14 @@ describe("getEthenaSolanaIdleBalances — STAC auto-discovery", () => {
     expect(res.totalUsd).toBe(0)
   })
 
-  it("deny-listed mint → silently dropped (no row, no failure)", async () => {
+  it("USDG (2u1tsz) is valued as a $1 peg stable, NOT denied", async () => {
     vi.doMock("@/lib/solana/rpc", () => ({
-      getTokenBalancesByOwner: vi.fn(async () => [
-        { mint: DENY_MINT, rawAmount: BigInt("1000000000"), decimals: 6 },
-      ]),
+      getTokenBalancesByOwner: vi.fn(async (owner: string) =>
+        owner === C23
+          ? // 1000 USDG (6 decimals) — previously wrongly deny-listed as dust.
+            [{ mint: USDG_MINT, rawAmount: BigInt("1000000000"), decimals: 6 }]
+          : [],
+      ),
     }))
     vi.doMock("@/lib/solana/das", () => ({
       fetchAssetIdentities: vi.fn(async () => new Map()),
@@ -136,7 +139,9 @@ describe("getEthenaSolanaIdleBalances — STAC auto-discovery", () => {
     const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
     const res = await getEthenaSolanaIdleBalances()
 
-    expect(res.rows).toHaveLength(0)
+    const usdg = res.rows.find((r) => r.symbol === "USDG")
+    expect(usdg).toBeDefined()
+    expect(usdg!.totalUsd).toBeCloseTo(1000, 0)
     expect(res.failures).toHaveLength(0)
   })
 

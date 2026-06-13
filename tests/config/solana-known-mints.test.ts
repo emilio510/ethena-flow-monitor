@@ -13,14 +13,13 @@ describe("solana-known-mints", () => {
     expect(entry.price.kind).toBe("jupiter")
   })
 
-  it("SOLANA_PEG_MINTS contains USDC", () => {
-    const symbol = SOLANA_PEG_MINTS["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"]
-    expect(symbol).toBe("USDC")
+  it("SOLANA_PEG_MINTS contains USDC and USDG (Global Dollar)", () => {
+    expect(SOLANA_PEG_MINTS["EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"]).toBe("USDC")
+    // USDG was wrongly deny-listed as dust; it is a real $1 stablecoin.
+    expect(SOLANA_PEG_MINTS["2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"]).toBe("USDG")
   })
 
-  it("SOLANA_DENY_MINTS contains the known dust stable", () => {
-    const reason = SOLANA_DENY_MINTS["2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"]
-    expect(reason).toBeDefined()
-    expect(typeof reason).toBe("string")
+  it("does NOT deny-list USDG (2u1tsz) — it is a real stablecoin, not spam", () => {
+    expect(SOLANA_DENY_MINTS["2u1tszSeqZ3qBWF3uNGPFc8TzMk2tdiwknnRMWGWjGWH"]).toBeUndefined()
   })
 })
