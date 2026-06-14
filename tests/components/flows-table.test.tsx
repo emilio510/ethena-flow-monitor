@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest"
-import { render, screen } from "@testing-library/react"
+import { render, screen, fireEvent } from "@testing-library/react"
 import { FlowsTable } from "@/components/flows-table"
 import type { Flow } from "@/lib/flows/types"
 
@@ -28,10 +28,26 @@ describe("FlowsTable", () => {
     render(<FlowsTable flows={[]} />)
     expect(screen.getByText(/no flows/i)).toBeInTheDocument()
   })
-  it("caps rendered rows to the limit and notes the total", () => {
-    const many = Array.from({ length: 150 }, (_, i) => mk({ txHash: "0x" + i, timestamp: 1779800000 + i }))
-    render(<FlowsTable flows={many} limit={50} />)
-    expect(screen.getAllByRole("row")).toHaveLength(50 + 1) // +1 header row
-    expect(screen.getByText(/showing 50 of 150/i)).toBeInTheDocument()
+  it("paginates 50 rows per page and pages through with Next", () => {
+    const many = Array.from({ length: 150 }, (_, i) =>
+      mk({ txHash: "0x" + i, timestamp: 1779800000 + i }),
+    )
+    render(<FlowsTable flows={many} />)
+    // first page: 50 rows + header
+    expect(screen.getAllByRole("row")).toHaveLength(50 + 1)
+    expect(screen.getByText(/1–50 of 150/)).toBeInTheDocument()
+    expect(screen.getByText(/Page 1 \/ 3/)).toBeInTheDocument()
+    expect(screen.getByText(/150 flows/i)).toBeInTheDocument()
+    fireEvent.click(screen.getByRole("button", { name: /Next/i }))
+    expect(screen.getByText(/51–100 of 150/)).toBeInTheDocument()
+    expect(screen.getByText(/Page 2 \/ 3/)).toBeInTheDocument()
+  })
+
+  it("links each flow's tx and addresses to the chain explorer", () => {
+    render(<FlowsTable flows={flows} />)
+    const links = screen.getAllByRole("link").map((a) => a.getAttribute("href"))
+    // ethereum tx → etherscan, xrpl tx → xrpscan
+    expect(links).toContain("https://etherscan.io/tx/0xH2")
+    expect(links).toContain("https://xrpscan.com/tx/H1")
   })
 })
