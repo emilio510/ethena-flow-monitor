@@ -8,12 +8,18 @@ import {
 } from "@/config/wallets"
 
 describe("ETHENA_WALLETS", () => {
-  it("contains 10 unique lowercased backing addresses (reserve fund excluded)", () => {
-    expect(ETHENA_WALLETS).toHaveLength(10)
-    expect(new Set(ETHENA_WALLETS).size).toBe(10)
+  it("contains 11 unique lowercased backing addresses (reserve fund excluded)", () => {
+    expect(ETHENA_WALLETS).toHaveLength(11)
+    expect(new Set(ETHENA_WALLETS).size).toBe(11)
     for (const a of ETHENA_WALLETS) {
       expect(a).toMatch(/^0x[0-9a-f]{40}$/)
     }
+  })
+
+  it("includes the on-chain-found $75M PYUSD wallet", () => {
+    expect(ETHENA_WALLETS as readonly string[]).toContain(
+      "0xec8431fcae78a739ed9c026ab3ae16e4e58db7b5",
+    )
   })
 
   it("does not include the reserve-fund wallet", () => {

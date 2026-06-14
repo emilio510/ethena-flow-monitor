@@ -13,6 +13,9 @@ export const ETHENA_WALLETS = [
   "0xf270a1d7c68002da1ec8359f3958d4ec015729de",
   "0x1c3b25019ed4e4876e7af7903cc3e1e23287c337",
   "0x3feaa7483fcfba130e68b41369dd78ff30465459",
+  // Holds $75M PYUSD on Ethereum (verified on-chain 2026-06-14). Not disclosed
+  // in Ethena's API addressEntries — found on-chain; closes a PYUSD recon gap.
+  "0xec8431fcae78a739ed9c026ab3ae16e4e58db7b5",
 ] as const
 
 /**
