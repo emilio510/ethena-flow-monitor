@@ -1,12 +1,11 @@
 import Link from "next/link"
-import { Tag } from "@/components/ui/tag"
 import { ChainIcon } from "./chain-icon"
 import { AssetIcon } from "@/components/asset-icon"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import type { FootprintRow } from "@/lib/views/footprint"
 
 const COLS =
-  "grid-cols-[minmax(0,1fr)_80px_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1fr)]"
+  "grid-cols-[minmax(0,1fr)_80px_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.2fr)]"
 
 export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
   return (
@@ -20,7 +19,6 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
         <div className="text-right">Ethena Supplied</div>
         <div className="text-right">Share</div>
         <div className="text-right">Recursion</div>
-        <div className="text-right">Tag</div>
       </div>
       {rows.map((r) => {
         const share = r.shareOfReserve ?? 0
@@ -93,13 +91,6 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
                 </>
               ) : (
                 <span className="font-mono text-[13px] text-[var(--color-risk)]">—</span>
-              )}
-            </div>
-            <div className="flex justify-end">
-              {r.isAnomalyBorrow ? (
-                <Tag tone="risk">Anomaly: borrow</Tag>
-              ) : (
-                <Tag tone="ok">Passive</Tag>
               )}
             </div>
           </Link>
