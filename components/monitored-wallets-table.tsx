@@ -28,7 +28,15 @@ function explorerUrl(row: WalletInventoryRow): string {
  * address isn't disclosed there (custodian-omnibus or reserve fund).
  */
 export function MonitoredWalletsTable({ rows }: { rows: WalletInventoryRow[] }) {
-  const total = rows.reduce((s, r) => s + r.totalUsd, 0)
+  // Total = BACKING only. The reserve fund is insurance, not backing, and is
+  // excluded everywhere else (reconciliation, headline) — so its rows are kept
+  // out of this total too (shown as a separate sub-line) to match those views.
+  const backingTotal = rows
+    .filter((r) => r.role !== "reserve-fund")
+    .reduce((s, r) => s + r.totalUsd, 0)
+  const reserveFundTotal = rows
+    .filter((r) => r.role === "reserve-fund")
+    .reduce((s, r) => s + r.totalUsd, 0)
   return (
     <div>
       <div className="mb-3 flex items-baseline justify-between">
@@ -36,7 +44,8 @@ export function MonitoredWalletsTable({ rows }: { rows: WalletInventoryRow[] }) 
           Monitored wallets — source of truth
         </h2>
         <span className="text-[12px] text-[var(--color-text-ghost)]">
-          {rows.length} addresses · {fmtUsd(total)}
+          {rows.length} addresses · {fmtUsd(backingTotal)} backing
+          {reserveFundTotal > 0 ? ` + ${fmtUsd(reserveFundTotal)} reserve fund` : ""}
         </span>
       </div>
       <p className="mb-3 text-[11px] text-[var(--color-text-ghost)]">

@@ -77,31 +77,28 @@ export default async function Page() {
   // Headline = Ethena's reported total when available, fall back to on-chain.
   const ethenaTotal = ethenaSnapshot ? totalBacking(ethenaSnapshot) : null
   const ethenaCustodial = ethenaSnapshot ? custodialValue(ethenaSnapshot) : null
-  // Verifier delta: how far our on-chain reads are from Ethena's verifiable
-  // (non-custodial) figure. Anything beyond ±2% is worth a yellow badge.
-  const ethenaVerifiable =
-    ethenaTotal !== null && ethenaCustodial !== null ? ethenaTotal - ethenaCustodial : null
-  const verifierDeltaPct =
-    ethenaVerifiable && ethenaVerifiable > 0
-      ? (onchainBacking - ethenaVerifiable) / ethenaVerifiable
-      : null
-  const verifierOk = verifierDeltaPct !== null && Math.abs(verifierDeltaPct) < 0.02
   // Per-asset reconciliation — only when Ethena's snapshot is available.
   const reconciliation = ethenaSnapshot
     ? buildReconciliation(ethenaSnapshot, rows, idle.rows)
     : null
-  // Recursive / non-recursive split of total backing. Recursive capital is
-  // what's levered in loops; the rest is backing that stands on its own.
-  const backingBase = ethenaTotal ?? onchainBacking
+  // Headline "Total backing" = OUR number: on-chain verified backing + the
+  // off-chain custodial slice (BTC/ETH at Copper, CBAM) that can't be read
+  // on-chain, taken from Ethena's snapshot since it's the only source for it.
+  // "Everything we independently verify + the one piece only they can attest"
+  // — not Ethena's raw reported total. Falls back to on-chain only when the
+  // snapshot (custodial) is unavailable.
+  const ourTotalBacking = onchainBacking + (ethenaCustodial ?? 0)
+  // Recursive / non-recursive split. Recursive capital is what's levered in
+  // loops; the rest is backing that stands on its own.
+  const backingBase = ourTotalBacking
   // Recursive-exposure denominator: prefer USDe circulating supply (on-chain,
-  // authoritative, always-current) over the lagging snapshot backing total —
-  // "what share of circulating USDe is sitting in recursive loops". Falls back
-  // to backing when the on-chain supply read failed.
+  // authoritative, always-current) over the backing total. Falls back to our
+  // backing when the on-chain supply read failed.
   const recursionDenom = usdeSupply && usdeSupply > 0 ? usdeSupply : backingBase
   const nonRecursiveUsd = Math.max(0, recursionDenom - recursiveUsd)
-  // Backing-vs-supply coverage: does reported backing keep up with the USDe
-  // actually circulating on-chain? null when the supply read failed.
-  const supplyCoverage = usdeSupply && usdeSupply > 0 ? backingBase / usdeSupply : null
+  // Backing-vs-supply coverage: does our backing keep up with the USDe actually
+  // circulating on-chain? null when the supply read failed.
+  const supplyCoverage = usdeSupply && usdeSupply > 0 ? ourTotalBacking / usdeSupply : null
 
   return (
     <main>
@@ -116,14 +113,12 @@ export default async function Page() {
               className="mt-2 font-mono text-[44px] font-light leading-none tracking-[-0.03em] text-[var(--color-text)] opacity-0"
               style={{ animation: "efm-rise 700ms var(--ease-out) 100ms forwards" }}
             >
-              {ethenaTotal !== null ? fmtUsd(ethenaTotal) : fmtUsd(onchainBacking)}
+              {fmtUsd(ourTotalBacking)}
             </div>
-            {ethenaTotal !== null && verifierDeltaPct !== null ? (
-              <div className="mt-3">
-                <Tag tone={verifierOk ? "ok" : "warn"}>
-                  {verifierOk ? "✓" : "⚠"} on-chain {verifierDeltaPct >= 0 ? "+" : ""}
-                  {fmtPct(verifierDeltaPct)} vs Ethena reported
-                </Tag>
+            {ethenaCustodial !== null ? (
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <Tag tone="ok">✓ {fmtUsd(onchainBacking)} on-chain verified</Tag>
+                <Tag tone="ghost">+ {fmtUsd(ethenaCustodial)} off-chain custodial</Tag>
               </div>
             ) : (
               <div className="mt-3">
@@ -137,11 +132,17 @@ export default async function Page() {
                 USDe circulating supply (on-chain)
                 {supplyCoverage !== null ? (
                   <>
-                    {" — backing covers "}
+                    {" — covers "}
                     <span className="font-mono text-[var(--color-text)]">
                       {fmtPct(supplyCoverage)}
                     </span>
                   </>
+                ) : null}
+                {ethenaTotal !== null ? (
+                  <span className="text-[var(--color-text-ghost)]">
+                    {" "}
+                    · Ethena reports {fmtUsd(ethenaTotal)}
+                  </span>
                 ) : null}
               </div>
             ) : null}
