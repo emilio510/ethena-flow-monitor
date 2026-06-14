@@ -1,4 +1,5 @@
 import { loadFootprint } from "@/lib/views/footprint"
+import { getUsdeCirculatingSupply } from "@/lib/onchain/usde-supply"
 import { Header } from "@/components/header"
 import { KpiCard } from "@/components/kpi-card"
 import { KpiStrip } from "@/components/kpi-strip"
@@ -59,6 +60,9 @@ export default async function Page() {
   // attribution. Cheap (single edge-cached GET) — the rest fans out behind it.
   const ethenaSnapshot = await safeFetchBacking()
   const footprint = await loadFootprint({ ethenaSnapshot: ethenaSnapshot ?? undefined })
+  // USDe circulating supply, read independently on-chain (mainnet totalSupply =
+  // global supply; not from the lagging snapshot). null on read failure.
+  const usdeSupply = await getUsdeCirculatingSupply()
   const {
     rows,
     failedWallets,
@@ -89,6 +93,9 @@ export default async function Page() {
   // what's levered in loops; the rest is backing that stands on its own.
   const backingBase = ethenaTotal ?? onchainBacking
   const nonRecursiveUsd = Math.max(0, backingBase - recursiveUsd)
+  // Backing-vs-supply coverage: does reported backing keep up with the USDe
+  // actually circulating on-chain? null when the supply read failed.
+  const supplyCoverage = usdeSupply && usdeSupply > 0 ? backingBase / usdeSupply : null
 
   return (
     <main>
@@ -117,6 +124,21 @@ export default async function Page() {
                 <Tag tone="ghost">on-chain only — Ethena API unavailable</Tag>
               </div>
             )}
+            {usdeSupply !== null ? (
+              <div className="mt-3 text-[11px] leading-relaxed text-[var(--color-text-ghost)]">
+                vs{" "}
+                <span className="font-mono text-[var(--color-text)]">{fmtUsd(usdeSupply)}</span>{" "}
+                USDe circulating supply (on-chain)
+                {supplyCoverage !== null ? (
+                  <>
+                    {" — backing covers "}
+                    <span className="font-mono text-[var(--color-text)]">
+                      {fmtPct(supplyCoverage)}
+                    </span>
+                  </>
+                ) : null}
+              </div>
+            ) : null}
           </div>
           <HeroMeter
             refractive
