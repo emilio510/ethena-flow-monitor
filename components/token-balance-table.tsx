@@ -1,4 +1,4 @@
-import { AssetIcon } from "@/components/ui/asset-icon"
+import { AssetIcon } from "@/components/asset-icon"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import type { IdleBalanceRow } from "@/lib/onchain/balances"
 
@@ -54,7 +54,7 @@ export function TokenBalanceTable({
               className={`grid ${COLS} items-center gap-4 border-b border-dashed border-[var(--color-border)] px-4 py-2.5 last:border-none transition-colors hover:bg-[var(--color-bg-elev)]`}
             >
               <div className="flex items-center gap-2.5">
-                <AssetIcon symbol={r.symbol} />
+                <AssetIcon symbol={r.symbol} size={18} />
                 <div className="flex items-center gap-2">
                   <span className="text-[13px] text-[var(--color-text-ghost)]">{r.symbol}</span>
                   {r.isErc4626 ? (

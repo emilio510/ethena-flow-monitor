@@ -14,6 +14,7 @@ import { buildReconciliation } from "@/lib/views/reconciliation"
 import { FlowsFileSchema } from "@/lib/flows/types"
 import { Tag } from "@/components/ui/tag"
 import { fmtUsd, fmtPct } from "@/lib/format"
+import { AssetIcon } from "@/components/asset-icon"
 import { custodialValue, fetchBackingAssets, totalBacking } from "@/lib/ethena"
 import type { BackingSnapshot } from "@/lib/ethena"
 import flowsData from "@/data/ethena-flows.json"
@@ -92,7 +93,12 @@ export default async function Page() {
   // Recursive / non-recursive split of total backing. Recursive capital is
   // what's levered in loops; the rest is backing that stands on its own.
   const backingBase = ethenaTotal ?? onchainBacking
-  const nonRecursiveUsd = Math.max(0, backingBase - recursiveUsd)
+  // Recursive-exposure denominator: prefer USDe circulating supply (on-chain,
+  // authoritative, always-current) over the lagging snapshot backing total —
+  // "what share of circulating USDe is sitting in recursive loops". Falls back
+  // to backing when the on-chain supply read failed.
+  const recursionDenom = usdeSupply && usdeSupply > 0 ? usdeSupply : backingBase
+  const nonRecursiveUsd = Math.max(0, recursionDenom - recursiveUsd)
   // Backing-vs-supply coverage: does reported backing keep up with the USDe
   // actually circulating on-chain? null when the supply read failed.
   const supplyCoverage = usdeSupply && usdeSupply > 0 ? backingBase / usdeSupply : null
@@ -143,12 +149,13 @@ export default async function Page() {
           <HeroMeter
             refractive
             label="Recursive exposure"
-            ratio={backingBase > 0 ? recursiveUsd / backingBase : 0}
+            ratio={recursionDenom > 0 ? recursiveUsd / recursionDenom : 0}
             rightCaption={
               <>
                 {fmtUsd(recursiveUsd)}
                 <br />
-                of {fmtUsd(backingBase)}
+                of {fmtUsd(recursionDenom)}
+                {usdeSupply && usdeSupply > 0 ? " USDe supply" : " backing"}
               </>
             }
           />
@@ -232,8 +239,11 @@ export default async function Page() {
                 <tbody>
                   {untrackedHoldings.map((h, i) => (
                     <tr key={i} className="border-t border-[var(--color-border)]">
-                      <td className="py-2 pr-4 font-mono text-xs">
-                        {h.symbol}
+                      <td className="py-2 pr-4">
+                        <span className="flex items-center gap-2 font-mono text-xs">
+                          <AssetIcon symbol={h.symbol} size={16} />
+                          {h.symbol}
+                        </span>
                       </td>
                       <td className="py-2 pr-4 text-xs">{h.chain}</td>
                       <td className="py-2 pr-4 font-mono text-xs">

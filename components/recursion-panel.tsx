@@ -5,6 +5,7 @@ import { fmtUsd, fmtPct } from "@/lib/format"
 import { classify, type Bucket } from "@/lib/recursion/classify"
 import { Tag } from "@/components/ui/tag"
 import { SectionHead } from "@/components/ui/section-head"
+import { AssetIcon } from "@/components/asset-icon"
 
 interface RowData {
   collateralSymbol: string
@@ -98,6 +99,7 @@ export function RecursionPanel({
                     className="inline-block h-2 w-2 rounded-full"
                     style={{ background: COLORS[bucket] }}
                   />
+                  <AssetIcon symbol={b.collateralSymbol} size={16} />
                   <span className="text-[13px] text-[var(--color-text)]">
                     {b.collateralSymbol}
                   </span>

@@ -1,6 +1,7 @@
 import Link from "next/link"
 import { Tag } from "@/components/ui/tag"
 import { ChainIcon } from "./chain-icon"
+import { AssetIcon } from "@/components/asset-icon"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import type { FootprintRow } from "@/lib/views/footprint"
 
@@ -49,15 +50,18 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
             >
               {r.protocol}
             </div>
-            <div className="min-w-0">
-              <div className="truncate text-[13px] text-[var(--color-text-ghost)]">
-                {r.vaultName ?? r.reserveSymbol}
-              </div>
-              {r.vaultName ? (
-                <div className="truncate text-[10px] text-[var(--color-text-ghost)]">
-                  {r.reserveSymbol} vault
+            <div className="flex min-w-0 items-center gap-2">
+              <AssetIcon symbol={r.reserveSymbol} size={16} />
+              <div className="min-w-0">
+                <div className="truncate text-[13px] text-[var(--color-text-ghost)]">
+                  {r.vaultName ?? r.reserveSymbol}
                 </div>
-              ) : null}
+                {r.vaultName ? (
+                  <div className="truncate text-[10px] text-[var(--color-text-ghost)]">
+                    {r.reserveSymbol} vault
+                  </div>
+                ) : null}
+              </div>
             </div>
             <div
               className={`text-right font-mono text-[13px] ${

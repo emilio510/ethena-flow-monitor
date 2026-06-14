@@ -2,7 +2,7 @@ import { fmtUsd } from "@/lib/format"
 import type { Reconciliation, ReconciliationStatus } from "@/lib/views/reconciliation"
 import { SectionHead } from "@/components/ui/section-head"
 import { Tag } from "@/components/ui/tag"
-import { AssetIcon } from "@/components/ui/asset-icon"
+import { AssetIcon } from "@/components/asset-icon"
 import { CoverageBar } from "@/components/ui/coverage-bar"
 
 function fmtGap(usd: number): string {
@@ -49,7 +49,7 @@ export function ReconciliationPanel({ data }: { data: Reconciliation }) {
             >
               <td className="py-2.5 pl-3 pr-3">
                 <span className="flex items-center gap-2.5">
-                  <AssetIcon symbol={r.asset} />
+                  <AssetIcon symbol={r.asset} size={14} />
                   <span className="text-[var(--color-text)]">{r.asset}</span>
                 </span>
               </td>

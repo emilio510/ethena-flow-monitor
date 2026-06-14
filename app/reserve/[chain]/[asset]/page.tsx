@@ -8,6 +8,7 @@ import { ConcentrationPanel } from "@/components/concentration-panel"
 import { ReserveTabs } from "@/components/reserve-tabs"
 import { RecursionPanel } from "@/components/recursion-panel"
 import { ChainIcon } from "@/components/chain-icon"
+import { AssetIcon } from "@/components/asset-icon"
 import { fmtUsd, fmtPct } from "@/lib/format"
 import { isChain } from "@/config/markets"
 
@@ -55,8 +56,11 @@ export default async function Page({
             <div className="text-[10px] font-medium uppercase tracking-[0.14em] text-[var(--color-text-ghost)]">
               Aave V3 reserve
             </div>
-            <div className="mt-2 font-mono text-[28px] font-light leading-none tracking-[-0.02em] text-[var(--color-text)]">
-              {symbol}
+            <div className="mt-2 flex items-center gap-3">
+              <AssetIcon symbol={symbol} size={28} />
+              <span className="font-mono text-[28px] font-light leading-none tracking-[-0.02em] text-[var(--color-text)]">
+                {symbol}
+              </span>
             </div>
             <div className="mt-3 flex items-center gap-2">
               <ChainIcon chain={chain} size={16} />
