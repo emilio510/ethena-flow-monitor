@@ -67,10 +67,8 @@ export function computeReserveRecursion(input: ReserveRecursionInput): ReserveRe
   // Fold in any Morpho markets borrowing this reserve's asset. The donut and
   // the Ethena-stack share both account for these so the reserve view reflects
   // cross-protocol leverage, not just Aave's slice.
-  let morphoBorrowsTotal = 0
   for (const mm of input.morphoMarkets ?? []) {
     if (mm.marketBorrowUsd <= 0) continue
-    morphoBorrowsTotal += mm.marketBorrowUsd
     attributedBorrowsTotal += mm.marketBorrowUsd
     const col = mm.collateralSymbol ?? "Unknown"
     borrowsByCollateral.set(col, (borrowsByCollateral.get(col) ?? 0) + mm.marketBorrowUsd)
@@ -79,11 +77,20 @@ export function computeReserveRecursion(input: ReserveRecursionInput): ReserveRe
     }
   }
 
-  const totalBorrowsConsidered = input.aggregateBorrows + morphoBorrowsTotal
+  // Borrow-share denominator = attributedBorrowsTotal, the SAME basis as the
+  // numerator (ethenaStackBorrowed): both are attributed from the sampled
+  // borrowers plus any folded Morpho markets. Previously this divided the
+  // sample-derived numerator by the markets-API `aggregateBorrows` — two
+  // different sources that can disagree badly (e.g. Plasma USDT0: aggregate vs
+  // sample-attributed differed ~1.7×), yielding an inconsistent borrow-share
+  // that could even exceed the donut's own Ethena wedge. Using
+  // attributedBorrowsTotal makes the score consistent with the by-collateral
+  // donut, bounded to [0,1], and unbiased under one-page (PAGE_SIZE) truncation
+  // — a truncated sample now yields the Ethena fraction OF WHAT WAS SAMPLED
+  // rather than a numerator-over-full-aggregate undercount. `aggregateBorrows`
+  // is retained on the input for display ("total borrowed"), not the score.
   const ethenaCollateralBorrowShare =
-    totalBorrowsConsidered > 0
-      ? clamp(ethenaStackBorrowed / totalBorrowsConsidered)
-      : 0
+    attributedBorrowsTotal > 0 ? clamp(ethenaStackBorrowed / attributedBorrowsTotal) : 0
 
   return {
     reserveSymbol: input.reserveSymbol,

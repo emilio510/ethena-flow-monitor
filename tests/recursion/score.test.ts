@@ -88,6 +88,39 @@ describe("computeReserveRecursion", () => {
     expect(result.ethenaCollateralBorrowShare).toBeCloseTo(0.5)
   })
 
+  it("borrow-share divides by the attributed (sample) total, NOT the markets aggregate", () => {
+    // Sampled borrowers attribute $400M of USDT0 borrows ($200M vs sUSDe,
+    // $200M vs WETH). The markets-API aggregate claims $1B (the two sources
+    // disagree — the real Plasma USDT0 bug). Borrow-share must be the
+    // consistent sample ratio 200/400 = 50%, NOT 200/1000 = 20%.
+    const result = computeReserveRecursion({
+      reserveSymbol: "USDT0",
+      marketKey: "plasma-core-v3",
+      rows: [
+        row({
+          userAddress: "0xA",
+          supplies: [{ symbol: "sUSDe", amount: 200_000_000, amountUsd: 200_000_000 }],
+          borrows: [{ symbol: "USDT0", amount: 200_000_000, amountUsd: 200_000_000 }],
+          totalSupplyUsd: 200_000_000,
+          totalBorrowUsd: 200_000_000,
+        }),
+        row({
+          userAddress: "0xB",
+          supplies: [{ symbol: "WETH", amount: 200_000_000, amountUsd: 200_000_000 }],
+          borrows: [{ symbol: "USDT0", amount: 200_000_000, amountUsd: 200_000_000 }],
+          totalSupplyUsd: 200_000_000,
+          totalBorrowUsd: 200_000_000,
+        }),
+      ],
+      aggregateDeposits: 1_000_000_000,
+      aggregateBorrows: 1_000_000_000, // markets API disagrees with the sample
+      ethenaSupplyByUser: new Map([["0xb8734a14fbd4aa2d44e6aa830405ffc861ba313c", 500_000_000]]),
+    })
+    expect(result.attributedBorrowsTotal).toBeCloseTo(400_000_000)
+    expect(result.ethenaCollateralBorrowShare).toBeCloseTo(0.5) // 200/400, not 200/1000
+    expect(result.recursionScore).toBeCloseTo(0.5 * 0.5)
+  })
+
   it("returns score 0 when no recursive borrows", () => {
     const result = computeReserveRecursion({
       reserveSymbol: "USDC",

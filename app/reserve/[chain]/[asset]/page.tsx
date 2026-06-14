@@ -33,9 +33,10 @@ export default async function Page({
     throw err
   }
 
-  // Donut Share column uses the row-attributed total so wedges sum to 100%.
-  // The headline recursion score still uses the markets-API aggregate so the
-  // two numbers can disagree (intentional — see ReserveRecursion docs).
+  // Donut Share column and the recursion score now share one basis:
+  // attributedBorrowsTotal (borrows attributed from the sampled borrowers +
+  // folded Morpho markets). So the Ethena-stack wedge equals the recursion's
+  // borrow-share component — no intentional divergence anymore.
   const denom = view.recursion.attributedBorrowsTotal
   const breakdown = Array.from(view.recursion.borrowsByCollateral.entries())
     .map(([collateralSymbol, borrowedUsd]) => ({

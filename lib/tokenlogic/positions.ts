@@ -47,7 +47,13 @@ export interface MarketPositionsPage {
  * paginate the full set: walking ethereum or base markets takes 25-60s and
  * exceeds Vercel Hobby tier's 10s function timeout. The recursion math
  * accepts that the first page is a sample and the result is approximate
- * for very large markets.
+ * for very large markets (`truncated` flags it).
+ *
+ * NOTE: no `order` param — server-side ordering is unspecified. The recursion
+ * borrow-share is the Ethena-stack fraction OF THIS SAMPLE; if the API returns
+ * borrowers largest-first, a truncated page over-represents whales and the
+ * fraction estimates "among the largest borrowers", not the whole market. The
+ * `truncated` flag surfaces this uncertainty to the UI.
  */
 export async function getMarketPositions(marketKey: string): Promise<MarketPositionsPage> {
   const enc = encodeURIComponent(marketKey)
