@@ -71,6 +71,11 @@ export interface WalletInventoryRow {
    *  (e.g. "USDe MintRedeem contract"). Undefined when no curated label. */
   label?: string
   totalUsd: number
+  /** True when part of `totalUsd` comes from Ethena's reported snapshot rather
+   *  than an independent on-chain read — i.e. the wallet holds a position we
+   *  can't see on-chain (e.g. C23FGx's Kamino kvault position, which isn't a
+   *  wallet token). The UI flags these as not independently verified. */
+  snapshotSourced?: boolean
 }
 
 export interface FootprintResult {
@@ -483,6 +488,9 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
   // API arrive lowercased and match config/wallets.ts as-is.
   const apiLabels = new Map<string, string>()
   const solanaWallets: WalletInventoryRow[] = []
+  // Snapshot-attributed USD per Solana address (Ethena's full per-address
+  // total, incl. positions we can't read on-chain like the Kamino kvault).
+  const snapshotSolByAddr = new Map<string, number>()
   if (opts.ethenaSnapshot) {
     const flat = flattenWallets(opts.ethenaSnapshot)
     const ctx = new Map<string, { cps: Set<string>; strategies: Set<string> }>()
@@ -491,26 +499,39 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
       if (f.counterparty) e.cps.add(f.counterparty)
       e.strategies.add(f.strategy)
       ctx.set(f.address, e)
+      if (f.chainSlug === "solana") {
+        snapshotSolByAddr.set(f.address, (snapshotSolByAddr.get(f.address) ?? 0) + f.value)
+      }
     }
     for (const [addr, e] of ctx) {
       apiLabels.set(addr, e.cps.size > 0 ? [...e.cps].join(", ") : [...e.strategies].join(", "))
     }
   }
 
-  // Solana wallet inventory driven by on-chain totals from solanaIdle (which
-  // covers both idle-bucket and deployed-bucket holdings per wallet). apiLabel
-  // is derived from the snapshot when available; totalUsd is always on-chain.
+  // Solana wallet inventory: prefer the independent on-chain total, but fall
+  // back to / top up with Ethena's snapshot attribution when the wallet holds a
+  // position we can't read on-chain (e.g. C23FGx's Kamino kvault is held in
+  // program accounts, not a wallet token). Using max() is safe because the
+  // on-chain holdings overlap the snapshot's counterparties (jleUSDG = Jupiter,
+  // JAAA/STAC = RWA), so the larger figure is the fuller one — never a sum of
+  // disjoint amounts. Rows where the snapshot exceeds on-chain are flagged as
+  // not independently verified. The snapshot value auto-updates (no hardcode).
+  const ONCHAIN_GAP_USD = 1_000_000 // snapshot must exceed on-chain by >$1M to flag
   const solTotalByAddr = new Map(
     solanaIdle.walletTotalUsd.map((w) => [w.address, w.totalUsd]),
   )
   for (const address of SOLANA_WALLETS) {
+    const onChain = solTotalByAddr.get(address) ?? 0
+    const snapshot = snapshotSolByAddr.get(address) ?? 0
+    const snapshotSourced = snapshot > onChain + ONCHAIN_GAP_USD
     solanaWallets.push({
       address,
       chain: "solana",
       role: "backing",
       apiLabel: apiLabels.get(address),
       label: KNOWN_SOLANA_WALLET_LABELS[address],
-      totalUsd: solTotalByAddr.get(address) ?? 0,
+      totalUsd: Math.max(onChain, snapshot),
+      snapshotSourced,
     })
   }
 

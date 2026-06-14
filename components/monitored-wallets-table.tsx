@@ -41,10 +41,12 @@ export function MonitoredWalletsTable({ rows }: { rows: WalletInventoryRow[] }) 
       </div>
       <p className="mb-3 text-[11px] text-[var(--color-text-ghost)]">
         Every address the dashboard treats as Ethena&apos;s. Holdings = idle
-        balances + deployed lending positions (Solana rows use Ethena&apos;s
-        reported USDG). The Ethena API column is the counterparty/strategy
-        the address is disclosed under — blank means undisclosed
-        (custodian-omnibus or reserve fund).
+        balances + deployed lending positions, read on-chain where possible;
+        rows marked &ldquo;snapshot-sourced&rdquo; include a position we
+        can&apos;t read on-chain (e.g. a Kamino kvault held in program accounts)
+        and fall back to Ethena&apos;s reported figure. The Ethena API column is
+        the counterparty/strategy the address is disclosed under — blank means
+        undisclosed (custodian-omnibus or reserve fund).
       </p>
       <div>
         <div
@@ -94,8 +96,18 @@ export function MonitoredWalletsTable({ rows }: { rows: WalletInventoryRow[] }) 
                 <span className="text-[var(--color-text-ghost)]">not disclosed</span>
               )}
             </div>
-            <div className="text-right font-mono text-[13px] text-[var(--color-text)]">
-              {fmtUsd(r.totalUsd)}
+            <div className="text-right">
+              <div className="font-mono text-[13px] text-[var(--color-text)]">
+                {fmtUsd(r.totalUsd)}
+              </div>
+              {r.snapshotSourced ? (
+                <div
+                  className="text-[9px] uppercase tracking-[0.08em] text-[var(--color-text-ghost)]"
+                  title="Part of this total is from Ethena's reported snapshot (e.g. a Kamino kvault position held in program accounts), not an independent on-chain read."
+                >
+                  snapshot-sourced
+                </div>
+              ) : null}
             </div>
           </div>
         ))}
