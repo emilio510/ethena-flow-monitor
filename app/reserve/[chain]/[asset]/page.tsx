@@ -95,7 +95,11 @@ export default async function Page({
           <KpiCard
             label="Recursion score"
             value={fmtPct(view.recursion.recursionScore)}
-            subValue={view.recursionApprox ? "approx, sampled" : undefined}
+            subValue={
+              view.recursionApprox
+                ? "utilization-aware, approx, sampled"
+                : "utilization-aware"
+            }
             tone="recursion"
           />
         </KpiStrip>

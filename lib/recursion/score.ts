@@ -92,12 +92,37 @@ export function computeReserveRecursion(input: ReserveRecursionInput): ReserveRe
   const ethenaCollateralBorrowShare =
     attributedBorrowsTotal > 0 ? clamp(ethenaStackBorrowed / attributedBorrowsTotal) : 0
 
+  // Reserve utilization, used to convert "Ethena's supplied $" (the weight
+  // applied downstream) into "Ethena's supplied $ actually borrowed out" —
+  // idle supply is not recursive. Computed on a COMBINED basis: the markets-API
+  // Aave aggregates plus any folded Morpho markets (drilldown only). Folded
+  // Morpho borrows are added to BOTH the borrowed and supplied sides (treating
+  // those isolated markets as ~fully utilized). Aave aggregates are full-basis,
+  // so the ratio is truncation-safe. This keeps a reserve that has an Aave
+  // deposit base AND Morpho leverage from being zeroed by a near-zero Aave
+  // utilization, and matches the prior pure-Morpho fallback (deposits 0,
+  // borrows 0, Morpho present → utilization 1). Pure Aave is unchanged.
+  const morphoBorrows = (input.morphoMarkets ?? []).reduce(
+    (s, m) => s + Math.max(0, m.marketBorrowUsd),
+    0,
+  )
+  const utilizationDenominator = input.aggregateDeposits + morphoBorrows
+  const utilization =
+    utilizationDenominator > 0
+      ? clamp((input.aggregateBorrows + morphoBorrows) / utilizationDenominator)
+      : 0
+
+  // Score = recursive-borrow fraction × utilization. `ethenaSupplyShare` is
+  // deliberately NOT a factor: downstream recursive-$ = ethenaSuppliedUsd ×
+  // score, and ethenaSuppliedUsd already embeds Ethena's supply share, so
+  // including it here would double-apply it. `ethenaSupplyShare` is still
+  // returned for display/diagnostics.
   return {
     reserveSymbol: input.reserveSymbol,
     marketKey: input.marketKey,
     ethenaSupplyShare,
     ethenaCollateralBorrowShare,
-    recursionScore: ethenaSupplyShare * ethenaCollateralBorrowShare,
+    recursionScore: ethenaCollateralBorrowShare * utilization,
     borrowsByCollateral,
     attributedBorrowsTotal,
   }
