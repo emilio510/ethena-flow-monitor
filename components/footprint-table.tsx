@@ -5,7 +5,7 @@ import { fmtUsd, fmtPct } from "@/lib/format"
 import type { FootprintRow } from "@/lib/views/footprint"
 
 const COLS =
-  "grid-cols-[minmax(0,1fr)_80px_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.2fr)]"
+  "grid-cols-[minmax(0,1fr)_80px_minmax(0,1fr)_minmax(0,1.1fr)_minmax(0,1fr)_minmax(0,1.2fr)_minmax(0,1.2fr)]"
 
 export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
   return (
@@ -19,6 +19,7 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
         <div className="text-right">Ethena Supplied</div>
         <div className="text-right">Share</div>
         <div className="text-right">Recursion</div>
+        <div className="text-right">Closed-loop</div>
       </div>
       {rows.map((r) => {
         const share = r.shareOfReserve ?? 0
@@ -89,6 +90,18 @@ export function FootprintTable({ rows }: { rows: FootprintRow[] }) {
                     {fmtUsd(r.ethenaSuppliedUsd * r.recursionScore)}
                   </div>
                 </>
+              ) : (
+                <span className="font-mono text-[13px] text-[var(--color-risk)]">—</span>
+              )}
+            </div>
+            <div
+              className="text-right"
+              title="Share of this market's borrow activity that is a closed Ethena loop (Ethena both supplier and collateral source). Concentration / artificial-inflation indicator. For Morpho vaults the base is vault TVL, not market borrows."
+            >
+              {r.closedLoopShare !== undefined ? (
+                <span className="font-mono text-[13px] text-[var(--color-risk)]">
+                  {fmtPct(r.closedLoopShare)}
+                </span>
               ) : (
                 <span className="font-mono text-[13px] text-[var(--color-risk)]">—</span>
               )}
