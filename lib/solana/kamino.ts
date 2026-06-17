@@ -65,6 +65,19 @@ export async function fetchEthenaMarketReserves(): Promise<KaminoReserve[]> {
  * compute it from the live reserve state rather than hard-coding 1.0 so that
  * if Kamino ever broadens the collateral set, the score reflects it.
  */
+/**
+ * Vault-level utilization on the debt side: borrowed ÷ supplied across the
+ * reserves that actually carry debt. Follows the lent-asset rotation
+ * (USDG → PYUSD) instead of assuming a fixed debt token, so the single-number
+ * drilldown view reflects the real position rather than one hard-coded reserve.
+ */
+export function computeKaminoUtilization(reserves: KaminoReserve[]): number {
+  const debt = reserves.filter((r) => r.totalBorrowUsd > 0)
+  const suppliedUsd = debt.reduce((s, r) => s + r.totalSupplyUsd, 0)
+  const borrowedUsd = debt.reduce((s, r) => s + r.totalBorrowUsd, 0)
+  return suppliedUsd > 0 ? borrowedUsd / suppliedUsd : 0
+}
+
 export function computeKaminoRecursion(reserves: KaminoReserve[]): number {
   const totalBorrowUsd = reserves.reduce((s, r) => s + r.totalBorrowUsd, 0)
   if (totalBorrowUsd <= 0) return 0

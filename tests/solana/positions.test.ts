@@ -328,6 +328,33 @@ describe("getEthenaSolanaPositions — per-asset attribution", () => {
     expect(result.failed).toHaveLength(0)
   })
 
+  it("Kamino row exposure is utilization-aware (70% utilized USDG reserve)", async () => {
+    // Give the USDG reserve a 70% utilization: borrow 70 of 100 supplied.
+    // recursiveFraction = computeKaminoRecursion = 1.0 (only USDe has maxLtv>0),
+    // so exposureScore = recursiveFraction × utilization = 1.0 × 0.7 = 0.7.
+    const usdg = mockReserves.find((r) => r.liquidityToken === "USDG")!
+    const prevSupply = usdg.totalSupplyUsd
+    const prevBorrow = usdg.totalBorrowUsd
+    usdg.totalSupplyUsd = 100
+    usdg.totalBorrowUsd = 70
+    try {
+      const { getEthenaSolanaPositions } = await import("@/lib/solana/positions")
+      const result = await getEthenaSolanaPositions(makeSnapshot())
+      const usdgKamino = result.rows.find(
+        (r) => r.protocol === "KAMINO" && r.reserveSymbol === "USDG",
+      )!
+      expect(usdgKamino.recursionScore).toBeCloseTo(0.7)
+      // closedLoopShare = shareOfReserve × recursiveFraction.
+      // shareOfReserve = min(1, 22.5M / 100) = 1 here, recursiveFraction = 1.
+      expect(usdgKamino.closedLoopShare).toBeCloseTo(
+        Math.min(1, 22_500_000 / 100) * 1.0,
+      )
+    } finally {
+      usdg.totalSupplyUsd = prevSupply
+      usdg.totalBorrowUsd = prevBorrow
+    }
+  })
+
   it("skips legs with value <= 0", async () => {
     const { getEthenaSolanaPositions } = await import("@/lib/solana/positions")
 

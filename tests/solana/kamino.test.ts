@@ -78,3 +78,39 @@ describe("computeKaminoRecursion", () => {
     expect(computeKaminoRecursion(noCollateral)).toBe(0)
   })
 })
+
+describe("computeKaminoUtilization", () => {
+  const reserve = (over: Partial<{ liquidityToken: string; totalSupplyUsd: number; totalBorrowUsd: number }>) => ({
+    reserve: "r",
+    liquidityToken: "USDG",
+    liquidityTokenMint: "m",
+    maxLtv: 0,
+    borrowApy: 0,
+    supplyApy: 0,
+    totalSupply: 0,
+    totalBorrow: 0,
+    totalSupplyUsd: 0,
+    totalBorrowUsd: 0,
+    ...over,
+  })
+
+  it("is debt-weighted across reserves that carry borrows (follows USDG→PYUSD rotation)", async () => {
+    const { computeKaminoUtilization } = await import("@/lib/solana/kamino")
+    const reserves = [
+      // collateral reserve: supplied but not borrowed — excluded from the ratio
+      reserve({ liquidityToken: "USDe", totalSupplyUsd: 500, totalBorrowUsd: 0 }),
+      // debt reserves: PYUSD dominant, USDG minor
+      reserve({ liquidityToken: "PYUSD", totalSupplyUsd: 250, totalBorrowUsd: 175 }),
+      reserve({ liquidityToken: "USDG", totalSupplyUsd: 50, totalBorrowUsd: 35 }),
+    ]
+    // (175 + 35) / (250 + 50) = 0.7 — NOT diluted by the 500 of idle USDe collateral
+    expect(computeKaminoUtilization(reserves)).toBeCloseTo(0.7)
+  })
+
+  it("returns 0 when nothing is borrowed", async () => {
+    const { computeKaminoUtilization } = await import("@/lib/solana/kamino")
+    expect(
+      computeKaminoUtilization([reserve({ totalSupplyUsd: 100, totalBorrowUsd: 0 })]),
+    ).toBe(0)
+  })
+})

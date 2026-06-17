@@ -11,8 +11,10 @@ import {
   fetchEthenaBorrowingVaults,
   fetchEthenaLendingTokens,
   computeJupiterRecursion,
+  totalUsdgBorrowedUsd,
   JUPITER_ETHENA_LENDING_VAULT,
 } from "./fluid"
+import { recursionMetrics } from "@/lib/recursion/metrics"
 
 export interface AssetLeg {
   asset: string
@@ -95,10 +97,23 @@ async function buildKaminoRows(legs: AssetLeg[]): Promise<FootprintRow[]> {
     fetchEthenaPrimeVaultMetrics(),
     fetchEthenaMarketReserves(),
   ])
-  const recursionScore = computeKaminoRecursion(reserves)
+  const recursiveFraction = computeKaminoRecursion(reserves)
   return activeLegs.map((leg) => {
     const reserve = reserves.find((r) => r.liquidityToken === leg.asset)
     const reserveAggregateDeposits = reserve?.totalSupplyUsd ?? vault.tokensInvestedUsd
+    const utilization =
+      reserve && reserve.totalSupplyUsd > 0
+        ? reserve.totalBorrowUsd / reserve.totalSupplyUsd
+        : 0
+    const shareOfReserve =
+      reserveAggregateDeposits > 0
+        ? Math.min(1, leg.value / reserveAggregateDeposits)
+        : undefined
+    const { exposureScore, closedLoopShare } = recursionMetrics(
+      shareOfReserve ?? 0,
+      recursiveFraction,
+      utilization,
+    )
     return {
       protocol: "KAMINO",
       chain: "solana",
@@ -108,11 +123,9 @@ async function buildKaminoRows(legs: AssetLeg[]): Promise<FootprintRow[]> {
       vaultAddress: KAMINO_ETHENA_PRIME_VAULT,
       ethenaSuppliedUsd: leg.value,
       reserveAggregateDeposits,
-      shareOfReserve:
-        reserveAggregateDeposits > 0
-          ? Math.min(1, leg.value / reserveAggregateDeposits)
-          : undefined,
-      recursionScore,
+      shareOfReserve,
+      recursionScore: exposureScore,
+      closedLoopShare,
       recursionApprox: false,
       isAnomalyBorrow: false,
     }
@@ -131,22 +144,33 @@ async function buildJupiterRows(legs: AssetLeg[]): Promise<FootprintRow[]> {
   const price = usdgLending.asset.price ?? 1
   const totalAssets = (usdgLending.totalAssets ?? 0) / 10 ** usdgLending.decimals
   const totalSuppliedUsd = totalAssets * price
-  const recursionScore = computeJupiterRecursion(borrowing)
-  return activeLegs.map((leg) => ({
-    protocol: "JUPITER LEND",
-    chain: "solana",
-    marketKey: `jup-lend:${JUPITER_ETHENA_LENDING_VAULT}`,
-    reserveSymbol: leg.asset,
-    vaultName: "Bitwise × Ethena (Fluid)",
-    vaultAddress: JUPITER_ETHENA_LENDING_VAULT,
-    ethenaSuppliedUsd: leg.value,
-    reserveAggregateDeposits: totalSuppliedUsd,
-    shareOfReserve:
-      totalSuppliedUsd > 0 ? Math.min(1, leg.value / totalSuppliedUsd) : undefined,
-    recursionScore,
-    recursionApprox: false,
-    isAnomalyBorrow: false,
-  }))
+  const recursiveFraction = computeJupiterRecursion(borrowing)
+  const utilization =
+    totalSuppliedUsd > 0 ? totalUsdgBorrowedUsd(borrowing) / totalSuppliedUsd : 0
+  return activeLegs.map((leg) => {
+    const shareOfReserve =
+      totalSuppliedUsd > 0 ? Math.min(1, leg.value / totalSuppliedUsd) : undefined
+    const { exposureScore, closedLoopShare } = recursionMetrics(
+      shareOfReserve ?? 0,
+      recursiveFraction,
+      utilization,
+    )
+    return {
+      protocol: "JUPITER LEND",
+      chain: "solana",
+      marketKey: `jup-lend:${JUPITER_ETHENA_LENDING_VAULT}`,
+      reserveSymbol: leg.asset,
+      vaultName: "Bitwise × Ethena (Fluid)",
+      vaultAddress: JUPITER_ETHENA_LENDING_VAULT,
+      ethenaSuppliedUsd: leg.value,
+      reserveAggregateDeposits: totalSuppliedUsd,
+      shareOfReserve,
+      recursionScore: exposureScore,
+      closedLoopShare,
+      recursionApprox: false,
+      isAnomalyBorrow: false,
+    }
+  })
 }
 
 function reasonOf(err: unknown): string {

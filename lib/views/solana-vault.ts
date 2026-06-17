@@ -1,4 +1,5 @@
 import {
+  computeKaminoUtilization,
   fetchEthenaMarketReserves,
   fetchEthenaPrimeVaultMetrics,
   KAMINO_ETHENA_MARKET,
@@ -9,9 +10,11 @@ import {
   fetchEthenaBorrowingVaults,
   fetchEthenaLendingTokens,
   computeJupiterRecursion,
+  totalUsdgBorrowedUsd,
   JUPITER_ETHENA_LENDING_VAULT,
 } from "@/lib/solana/fluid"
 import { fetchBackingAssets, type BackingSnapshot } from "@/lib/ethena"
+import { recursionMetrics } from "@/lib/recursion/metrics"
 
 export type SolanaProtocol = "KAMINO" | "JUPITER LEND"
 
@@ -96,6 +99,8 @@ export interface SolanaVaultView {
   marketRecursionShare: number
   /** ethena_share × market_recursion — mirrors Morpho's recursionScore. */
   recursionScore: number
+  /** Concentration: ethenaShareOfVault × marketRecursionShare. Display-only. */
+  closedLoopShare: number
   /** Underlying market reserves (Kamino) or borrow pairs (Jupiter). */
   composition: SolanaCompositionRow[]
   /** External canonical URL for the protocol's own UI. */
@@ -179,12 +184,17 @@ async function loadKaminoView(snapshot: BackingSnapshot): Promise<SolanaVaultVie
     .sort((a, b) => b.supplyUsd - a.supplyUsd)
 
   const usdgReserve = reserves.find((r) => r.liquidityToken === "USDG")
-  const utilization =
-    usdgReserve && usdgReserve.totalSupplyUsd > 0
-      ? clamp(usdgReserve.totalBorrowUsd / usdgReserve.totalSupplyUsd)
-      : 0
+  // Debt-weighted across the reserves that actually carry borrows, so the
+  // single vault-level utilization follows the USDG → PYUSD lent-asset rotation
+  // instead of pinning to one hard-coded reserve.
+  const utilization = computeKaminoUtilization(reserves)
 
   const marketRecursionShare = computeRecursionFromKaminoReserves(reserves)
+  const { exposureScore, closedLoopShare } = recursionMetrics(
+    ethenaShareOfVault,
+    marketRecursionShare,
+    utilization,
+  )
   return {
     protocol: "KAMINO",
     address: KAMINO_ETHENA_PRIME_VAULT,
@@ -196,7 +206,8 @@ async function loadKaminoView(snapshot: BackingSnapshot): Promise<SolanaVaultVie
     utilization,
     supplyApy: vault.apy,
     marketRecursionShare,
-    recursionScore: ethenaShareOfVault * marketRecursionShare,
+    recursionScore: exposureScore,
+    closedLoopShare,
     composition,
     externalUrl: `https://kamino.com/borrow/reserve/${KAMINO_ETHENA_MARKET}/${usdgReserve?.reserve ?? ""}`,
   }
@@ -275,13 +286,15 @@ async function loadJupiterView(snapshot: BackingSnapshot): Promise<SolanaVaultVi
 
   // Vault-level utilization: total USDG borrowed across all USDG-debt vaults
   // ÷ the supply pool. Mechanically ~100% — the IRM keeps it pinned there.
-  const totalUsdgBorrowedUsd = usdgBorrowVaults.reduce(
-    (s, v) => s + toUsd(Number(v.totalBorrow ?? 0), v.borrowToken.decimals, v.borrowToken.price ?? 1),
-    0,
-  )
-  const utilization = totalAssetsUsd > 0 ? clamp(totalUsdgBorrowedUsd / totalAssetsUsd) : 0
+  const utilization =
+    totalAssetsUsd > 0 ? clamp(totalUsdgBorrowedUsd(borrowing) / totalAssetsUsd) : 0
 
   const marketRecursionShare = computeJupiterRecursion(borrowing)
+  const { exposureScore, closedLoopShare } = recursionMetrics(
+    ethenaShareOfVault,
+    marketRecursionShare,
+    utilization,
+  )
   return {
     protocol: "JUPITER LEND",
     address: JUPITER_ETHENA_LENDING_VAULT,
@@ -293,7 +306,8 @@ async function loadJupiterView(snapshot: BackingSnapshot): Promise<SolanaVaultVi
     utilization,
     supplyApy: fluidRate(Number(jleUsdg.supplyRate ?? 0)),
     marketRecursionShare,
-    recursionScore: ethenaShareOfVault * marketRecursionShare,
+    recursionScore: exposureScore,
+    closedLoopShare,
     composition,
     externalUrl: "https://jup.ag/lend/ethena/market",
   }

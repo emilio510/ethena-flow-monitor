@@ -65,3 +65,43 @@ describe("computeJupiterRecursion", () => {
     expect(computeJupiterRecursion([])).toBe(0)
   })
 })
+
+describe("totalUsdgBorrowedUsd", () => {
+  // Mirror the FluidBorrowingVault fixture shape; only the fields the helper
+  // reads (borrowToken.symbol/decimals/price, totalBorrow) need real values.
+  function makeVault(opts: {
+    borrowSymbol: string
+    totalBorrow: number
+    borrowDecimals: number
+    borrowPrice: number
+  }) {
+    return {
+      id: 0,
+      address: "vault",
+      supplyToken: { address: "s", chainId: "solana", symbol: "USDe", decimals: 6, price: 1 },
+      borrowToken: {
+        address: "b",
+        chainId: "solana",
+        symbol: opts.borrowSymbol,
+        decimals: opts.borrowDecimals,
+        price: opts.borrowPrice,
+      },
+      liquidationThreshold: 0.94,
+      collateralFactor: 0.92,
+      supplyRate: 0,
+      borrowRate: 0,
+      totalSupply: 0,
+      totalBorrow: opts.totalBorrow,
+    } as const
+  }
+
+  it("sums USDG borrows across borrow vaults, ignoring non-USDG vaults", async () => {
+    const { totalUsdgBorrowedUsd } = await import("@/lib/solana/fluid")
+    const vaults = [
+      makeVault({ borrowSymbol: "USDG", totalBorrow: 100, borrowDecimals: 0, borrowPrice: 1 }),
+      makeVault({ borrowSymbol: "USDG", totalBorrow: 50, borrowDecimals: 0, borrowPrice: 1 }),
+      makeVault({ borrowSymbol: "WSOL", totalBorrow: 999, borrowDecimals: 0, borrowPrice: 1 }),
+    ]
+    expect(totalUsdgBorrowedUsd(vaults)).toBeCloseTo(150)
+  })
+})

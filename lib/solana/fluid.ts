@@ -77,6 +77,19 @@ export function lendingUsd(token: FluidLendingToken): { totalSuppliedUsd: number
   return { totalSuppliedUsd: totalAssets * price, price }
 }
 
+/** Total USDG currently borrowed across all USDG-debt vaults, in USD. */
+export function totalUsdgBorrowedUsd(vaults: FluidBorrowingVault[]): number {
+  return vaults
+    .filter((v) => v.borrowToken.symbol === "USDG")
+    .reduce(
+      (s, v) =>
+        s +
+        (Number(v.totalBorrow ?? 0) / 10 ** v.borrowToken.decimals) *
+          (v.borrowToken.price ?? 1),
+      0,
+    )
+}
+
 /**
  * Recursion score for the Jupiter / Bitwise × Ethena USDG-supply pool: the
  * share of borrowed USDG that's collateralised by an Ethena-stack asset.
