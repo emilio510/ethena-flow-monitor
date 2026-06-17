@@ -47,6 +47,8 @@ describe("computeReserveRecursion", () => {
     // score = borrowShare × utilization (supplyShare is NOT a factor of the score)
     expect(result.ethenaCollateralBorrowShare).toBeCloseTo(1)
     expect(result.recursionScore).toBeCloseTo(179_000_000 / 600_000_000)
+    // closed-loop = supplyShare × borrowShare = (500/600) × 1.0
+    expect(result.closedLoopShare).toBeCloseTo(500_000_000 / 600_000_000)
     // recursive$ = ethenaSupplied × score = 500M × 0.2983 ≈ $149M (borrow-anchored)
     expect(500_000_000 * result.recursionScore).toBeCloseTo(149_166_666, -4)
     expect(result.borrowsByCollateral.get("USDe")).toBeCloseTo(179_000_000)

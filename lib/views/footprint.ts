@@ -20,6 +20,7 @@ import {
   isEthenaWallet,
 } from "@/config/wallets"
 import { computeReserveRecursion } from "@/lib/recursion/score"
+import { morphoRecursionMetrics } from "@/lib/recursion/metrics"
 import { classify, isEthenaStack } from "@/lib/recursion/classify"
 import { getEthenaSolanaPositions } from "@/lib/solana"
 import { getEthenaSolanaIdleBalances } from "@/lib/solana/balances"
@@ -51,6 +52,7 @@ export interface FootprintRow {
   reserveAggregateDeposits?: number
   shareOfReserve?: number
   recursionScore?: number
+  closedLoopShare?: number
   recursionApprox?: boolean
   isAnomalyBorrow: boolean
 }
@@ -280,7 +282,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
       aggregateBorrows: agg.borrows,
       ethenaSupplyByUser,
     })
-    return { score: r.recursionScore, approx: sample.truncated }
+    return { score: r.recursionScore, closedLoop: r.closedLoopShare, approx: sample.truncated }
   }
 
   const out: FootprintRow[] = []
@@ -304,6 +306,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
         reserveAggregateDeposits: agg?.deposits,
         shareOfReserve: agg && agg.deposits > 0 ? supplied / agg.deposits : undefined,
         recursionScore: recursion?.score,
+        closedLoopShare: recursion?.closedLoop,
         recursionApprox: recursion?.approx,
         isAnomalyBorrow: false,
       })
@@ -364,13 +367,16 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
     if (supplied <= 0) continue
     const vault = vaultsByKey.get(key)
     let recursionScore: number | undefined
+    let closedLoopShareValue: number | undefined
     let shareOfReserve: number | undefined
     let totalAssets: number | undefined
     if (vault) {
       totalAssets = vault.totalAssetsUsd
       shareOfReserve = vault.totalAssetsUsd > 0 ? supplied / vault.totalAssetsUsd : undefined
       const vaultRecursion = morphoVaultRecursionShare(vault)
-      recursionScore = clamp(shareOfReserve ?? 0) * vaultRecursion
+      const m = morphoRecursionMetrics(shareOfReserve ?? 0, vaultRecursion)
+      recursionScore = m.exposureScore
+      closedLoopShareValue = m.closedLoopShare
       weightedNumerator += supplied * recursionScore
       weightedDenominator += supplied
     }
@@ -385,6 +391,7 @@ export async function loadFootprint(opts: FootprintOptions = {}): Promise<Footpr
       reserveAggregateDeposits: totalAssets,
       shareOfReserve,
       recursionScore,
+      closedLoopShare: closedLoopShareValue,
       recursionApprox: false,
       isAnomalyBorrow: false,
     })

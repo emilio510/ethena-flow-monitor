@@ -4,6 +4,7 @@ import {
   MORPHO_CHAINS,
 } from "@/lib/morpho/positions"
 import { classify, isEthenaStack } from "@/lib/recursion/classify"
+import { morphoRecursionMetrics } from "@/lib/recursion/metrics"
 
 export type MorphoChain = "ethereum" | "base"
 
@@ -48,6 +49,7 @@ export interface VaultView {
   ethenaShareOfVault: number
   vaultRecursionShare: number
   recursionScore: number
+  closedLoopShare: number
   allocation: VaultMarketAllocation[]
   ethenaDepositors: VaultEthenaDepositor[]
 }
@@ -116,7 +118,8 @@ export async function loadVaultView(
   const vaultRecursionShare =
     vault.totalAssetsUsd > 0 ? clamp(attributedRecursiveBorrow / vault.totalAssetsUsd) : 0
 
-  const recursionScore = ethenaShareOfVault * vaultRecursionShare
+  const { exposureScore: recursionScore, closedLoopShare } =
+    morphoRecursionMetrics(ethenaShareOfVault, vaultRecursionShare)
 
   const ethenaDepositors: VaultEthenaDepositor[] = ethenaInVault
     .map((p) => ({
@@ -137,6 +140,7 @@ export async function loadVaultView(
     ethenaShareOfVault,
     vaultRecursionShare,
     recursionScore,
+    closedLoopShare,
     allocation,
     ethenaDepositors,
   }

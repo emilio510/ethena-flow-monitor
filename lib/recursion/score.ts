@@ -1,6 +1,7 @@
 import type { UserPositionRow } from "@/lib/tokenlogic/schemas"
 import { attributeRow } from "./attribute"
 import { classify, isEthenaStack } from "./classify"
+import { recursionMetrics } from "./metrics"
 
 export interface ReserveRecursion {
   reserveSymbol: string
@@ -8,6 +9,8 @@ export interface ReserveRecursion {
   ethenaSupplyShare: number
   ethenaCollateralBorrowShare: number
   recursionScore: number
+  /** Concentration: supplyShare × recursiveFraction. Display-only. */
+  closedLoopShare: number
   borrowsByCollateral: Map<string, number>
   /** Sum of borrowsByCollateral.values() — the denominator the donut Share
    * column should use so wedge percentages add up to 100%. May be < the
@@ -117,12 +120,19 @@ export function computeReserveRecursion(input: ReserveRecursionInput): ReserveRe
   // score, and ethenaSuppliedUsd already embeds Ethena's supply share, so
   // including it here would double-apply it. `ethenaSupplyShare` is still
   // returned for display/diagnostics.
+  const { exposureScore, closedLoopShare } = recursionMetrics(
+    ethenaSupplyShare,
+    ethenaCollateralBorrowShare,
+    utilization,
+  )
+
   return {
     reserveSymbol: input.reserveSymbol,
     marketKey: input.marketKey,
     ethenaSupplyShare,
     ethenaCollateralBorrowShare,
-    recursionScore: ethenaCollateralBorrowShare * utilization,
+    recursionScore: exposureScore,
+    closedLoopShare,
     borrowsByCollateral,
     attributedBorrowsTotal,
   }
