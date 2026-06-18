@@ -45,7 +45,7 @@ Alongside the headline:
 
 | Panel | Component | What it shows |
 |---|---|---|
-| **Footprint table** | `footprint-table.tsx` | One row per (chain, protocol, reserve/vault) where a monitored wallet has a *deployed* position. Clickable → Aave reserve drilldown or Morpho/Solana vault drilldown. Columns: Chain · Protocol · Reserve/Vault · Ethena Supplied · Share · Recursion. |
+| **Footprint table** | `footprint-table.tsx` | One row per (chain, protocol, reserve/vault) where a monitored wallet has a *deployed* position. Clickable → Aave reserve drilldown or Morpho/Solana vault drilldown. Columns: Chain · Protocol · Reserve/Vault · Ethena Supplied · Share · Recursion · Closed-loop. |
 | **Idle backing** | `token-balance-table.tsx` | Per-token aggregate of non-deployed stablecoin balances across the wallets. |
 | **Reserve fund** | `token-balance-table.tsx` | The insurance wallet's holdings, shown for completeness but **excluded from every backing total** (Ethena excludes it too). |
 | **Per-asset reconciliation** | `reconciliation-panel.tsx` | Ethena-reported vs our on-chain read, per asset, with the gap and a verified/gap status. This is the trust anchor — see §6. |
@@ -130,19 +130,31 @@ Net: independently-verified on-chain backing reconciles to **within ~$84–100M 
 
 ## 7. The recursion math
 
-### Per-Aave-reserve recursion score
-```
-recursion_score = ethena_supply_share × ethena_collateral_borrow_share
-ethena_supply_share            = $ supplied by Ethena wallets ÷ total reserve supply
-ethena_collateral_borrow_share = $ borrowed against Ethena-stack collateral ÷ total attributed borrows
-```
-Multi-collateral borrowers are attributed pro-rata by USD (`lib/recursion/attribute.ts`).
+Two metrics per position, both computed from one canonical helper
+(`lib/recursion/metrics.ts`) so they mean the same thing on every protocol row
+(Aave / Morpho / Kamino / Jupiter).
 
-### Per-Morpho-vault recursion
+### Recursion — exposure rate
+What share of Ethena's *deposited* capital in a venue is actually levered in a
+recursive loop. This drives the headline "Recursive exposure".
 ```
-vault_recursion_share = Σ(allocation_i × utilization_i × is_recursive_i) ÷ vault_TVL
+exposure      = recursive_borrow_fraction × utilization
+recursive_usd = ethena_supplied_usd × exposure   (= supply_share × recursive_borrows — idle supply is not counted)
 ```
-Idle vault liquidity is excluded — only borrowed money in recursive markets counts.
+- **Aave:** `recursive_borrow_fraction` = $ borrowed against Ethena-stack collateral ÷ total attributed borrows; `utilization` = borrows ÷ deposits. Multi-collateral borrowers are attributed pro-rata by USD (`lib/recursion/attribute.ts`).
+- **Morpho:** exposure = `vault_recursion_share = Σ(allocation_i × utilization_i × is_recursive_i) ÷ vault_TVL` (utilization already baked in; idle vault liquidity excluded).
+- **Kamino / Jupiter:** `recursive_borrow_fraction × utilization`, with utilization debt-weighted so it follows the lent-asset rotation (USDG → PYUSD) instead of a hard-coded reserve.
+
+### Closed-loop — concentration
+What share of a market's borrow activity is a closed Ethena↔Ethena loop — Ethena
+both the lender *and* the collateral source. A concentration / artificial-
+inflation indicator. **Display-only:** it never enters `recursive_usd` or any
+backing total.
+```
+closed_loop = supply_share × recursive_borrow_fraction
+```
+For Morpho the base is vault TVL (a vault has no single borrow book), not market
+borrows; the column tooltip notes this.
 
 ### Ethena-stack classification (`lib/recursion/classify.ts`)
 - **TIER_1:** USDe, sUSDe, USDtb, sUSDtb (Ethena-issued)
@@ -160,7 +172,7 @@ A market is "recursive" when its collateral or loan asset is TIER_1 or PT.
 - **ISR `revalidate = 300`** (5 min) + `maxDuration = 90` — keeps the cache warm under traffic while letting a transient bad render heal within minutes. `loading.tsx` skeletons cover cold renders.
 - **Design system:** refractive liquid glass (monochrome + cyan accent) via `components/ui/` (`glass-card`, `refractive-glass`, `hero-meter`).
 - **recharts** for donuts; **viem** for on-chain reads; **zod** parsing pushed to the data boundary so pages receive fully-typed values.
-- **Vitest** — **233 tests** (schema validation, recursion math, classifier, view composition).
+- **Vitest** — **250 tests** (schema validation, recursion math + closed-loop metrics, classifier, view composition).
 
 ---
 
