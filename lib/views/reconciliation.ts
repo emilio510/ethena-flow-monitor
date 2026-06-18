@@ -39,6 +39,20 @@ const OFF_CHAIN: Record<string, string> = {
   CBAM: "Institutional lending — BTC-anchored, off-chain",
 }
 
+/**
+ * On-chain idle tokens that ARE an Ethena-reported counterparty position under
+ * a different name. Ethena reports these as a counterparty with no asset
+ * breakdown (keyed by counterparty name below); we independently verify them
+ * on-chain via a token whose symbol differs. Fold the on-chain balance into the
+ * Ethena key so the position reconciles to one verified row instead of two
+ * offsetting false gaps.
+ */
+const IDLE_SYMBOL_ALIASES: Record<string, string> = {
+  // Ethena: "Maple Institutional" counterparty (Institutional Lending, no asset
+  // breakdown). On-chain: the MPLhysUSDC1 ERC4626 share in the backing wallet.
+  MPLhysUSDC1: "Maple Institutional",
+}
+
 /** Rows below this on both sides are dust — not worth a line. */
 const MIN_ROW_USD = 1_000_000
 
@@ -70,7 +84,8 @@ export function buildReconciliation(
     ours.set(row.reserveSymbol, (ours.get(row.reserveSymbol) ?? 0) + row.ethenaSuppliedUsd)
   }
   for (const row of idle) {
-    ours.set(row.symbol, (ours.get(row.symbol) ?? 0) + row.totalUsd)
+    const key = IDLE_SYMBOL_ALIASES[row.symbol] ?? row.symbol
+    ours.set(key, (ours.get(key) ?? 0) + row.totalUsd)
   }
 
   const rows: ReconciliationRow[] = []
