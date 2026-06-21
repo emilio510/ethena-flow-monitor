@@ -24178,29 +24178,5 @@
     "classification": "rebalance",
     "confidence": "high",
     "reason": "sent to a known Ethena wallet"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xc36fa578a4ba7402a7d01f28ce9dcd8356121d393508d039a9d298815ba0ef1d",
-    "timestamp": 1774204643,
-    "from": "0xf270a1d7c68002da1ec8359f3958d4ec015729de",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDtb",
-    "amountUsd": 1160165.8108832,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x3410ade2df22306f55bd2907a3ce94d87e99e9755d5e2cc58a07b873d74220b6",
-    "timestamp": 1774204523,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x4ee42640cf2a728f4c0412fc42e222d947de4d95",
-    "asset": "USDtb",
-    "amountUsd": 2092756.88,
-    "classification": "rebalance",
-    "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC)"
   }
 ]
