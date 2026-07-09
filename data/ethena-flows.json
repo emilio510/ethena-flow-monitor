@@ -24250,17 +24250,5 @@
     "classification": "rebalance",
     "confidence": "low",
     "reason": "holds only stablecoins (USDC, USDT)"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xbc8546ffc195028bdf99a555b0814d85e7beac8d135f46331fc85f194b14525c",
-    "timestamp": 1775786555,
-    "from": "0x2d4d2a025b10c09bdbd794b4fce4f7ea8c7d7bb4",
-    "to": "0xc116fb95643e253335c265a161596af4edb0e0c1",
-    "asset": "USDC",
-    "amountUsd": 9999999,
-    "classification": "rebalance",
-    "confidence": "low",
-    "reason": "holds only stablecoins (USDC)"
   }
 ]
