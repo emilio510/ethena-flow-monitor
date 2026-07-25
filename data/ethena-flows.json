@@ -1,6 +1,174 @@
 [
   {
     "chain": "ethereum",
+    "txHash": "0xbbce30bb3a92c21ee08fda6d80562535a34d33329abfb880be25c23baedcf008",
+    "timestamp": 1784917487,
+    "from": "0xb8734a14fbd4aa2d44e6aa830405ffc861ba313c",
+    "to": "0x2d4d2a025b10c09bdbd794b4fce4f7ea8c7d7bb4",
+    "asset": "USDT",
+    "amountUsd": 7000000,
+    "classification": "rebalance",
+    "confidence": "high",
+    "reason": "sent to a known Ethena wallet"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0xac57bfc1074f1083960f78ca17e2a0357950a09f3dd32df611cd6a2f312e3082",
+    "timestamp": 1784915891,
+    "from": "0x1c3b25019ed4e4876e7af7903cc3e1e23287c337",
+    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "asset": "USDC",
+    "amountUsd": 1420000.381,
+    "classification": "redeem",
+    "confidence": "high",
+    "reason": "sent to redeem/burn sink"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0x0c4b0963ad5c0c918250732eb275e0af3f5787fd8a5059988889e800a2f6b6d7",
+    "timestamp": 1784915867,
+    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "to": "0xa33e1f748754d2d624638ab335100d92fcbe62a2",
+    "asset": "USDC",
+    "amountUsd": 1319999.19,
+    "classification": "rebalance",
+    "confidence": "low",
+    "reason": "holds only stablecoins (USDe)"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0x2171edf55d06c4cbf466d1e127e5cc3d3db389108953072c3aab55294687deb5",
+    "timestamp": 1784914439,
+    "from": "0x1c3b25019ed4e4876e7af7903cc3e1e23287c337",
+    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "asset": "USDC",
+    "amountUsd": 1446173.608,
+    "classification": "redeem",
+    "confidence": "high",
+    "reason": "sent to redeem/burn sink"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0x3b29130c2434f01c80d9eb1e0d15db80fbea5d9f47a9a39edb1c222ba5622eb8",
+    "timestamp": 1784914415,
+    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "to": "0xa33e1f748754d2d624638ab335100d92fcbe62a2",
+    "asset": "USDC",
+    "amountUsd": 1146163.27,
+    "classification": "rebalance",
+    "confidence": "low",
+    "reason": "holds only stablecoins (USDe)"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0x82c44994b707ea024585ac7ccb38542cb4e61f4468c92274e9f49db272c8e0e8",
+    "timestamp": 1784911955,
+    "from": "0xb8734a14fbd4aa2d44e6aa830405ffc861ba313c",
+    "to": "0x2d4d2a025b10c09bdbd794b4fce4f7ea8c7d7bb4",
+    "asset": "USDT",
+    "amountUsd": 10000000,
+    "classification": "rebalance",
+    "confidence": "high",
+    "reason": "sent to a known Ethena wallet"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0xd88d0c260cd2ac1fbecdd12bd8c4e1aca52766a218f338234e9560261808b90b",
+    "timestamp": 1784903051,
+    "from": "0x1c3b25019ed4e4876e7af7903cc3e1e23287c337",
+    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "asset": "USDC",
+    "amountUsd": 4414228.302,
+    "classification": "redeem",
+    "confidence": "high",
+    "reason": "sent to redeem/burn sink"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0xe5164ebae9ea2590b1740d6af8cd42066442ef82c70041e98a90d33838b5a947",
+    "timestamp": 1784903027,
+    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "to": "0x424323d25d30c687bdf79bb333da1d41c0373f37",
+    "asset": "USDC",
+    "amountUsd": 4014217.95,
+    "classification": "rebalance",
+    "confidence": "low",
+    "reason": "holds only stablecoins (USDe, USDC, USDT)"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0x8bc429b561a98f767fa9d32e1ce3413cbe901de1403f8aa7db3aff7e8ab91962",
+    "timestamp": 1784884103,
+    "from": "0x1c3b25019ed4e4876e7af7903cc3e1e23287c337",
+    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "asset": "USDC",
+    "amountUsd": 5499999.16,
+    "classification": "redeem",
+    "confidence": "high",
+    "reason": "sent to redeem/burn sink"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0x74742eaadc447cbe651ccb1e96ef78246fdb5a5da1792d64651e99603e9275f4",
+    "timestamp": 1784884091,
+    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "to": "0x4352cc849b33a936ad93bb109afdec1c89653b4f",
+    "asset": "USDC",
+    "amountUsd": 5499999.16,
+    "classification": "rebalance",
+    "confidence": "low",
+    "reason": "holds only stablecoins (USDe, USDT)"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0xc1c3eb5abd62d32f276519b4256b964be74824fb7a151da670e1ca4e282a0cfb",
+    "timestamp": 1784881571,
+    "from": "0x1c3b25019ed4e4876e7af7903cc3e1e23287c337",
+    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "asset": "USDC",
+    "amountUsd": 3262914.5518,
+    "classification": "redeem",
+    "confidence": "high",
+    "reason": "sent to redeem/burn sink"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0x2af6a6c068e888d3a74f1cac3359c1c267953a603dcf2ce615eff8b6db90fca8",
+    "timestamp": 1784881547,
+    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "to": "0xe8f4f324e11c1cadf348b9bf201e380b61d3c695",
+    "asset": "USDC",
+    "amountUsd": 2874902.82,
+    "classification": "rebalance",
+    "confidence": "low",
+    "reason": "holds only stablecoins (USDe, USDC)"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0x355ee46b3c69de569d31fa16040b4c3ecb219517c212cd7ece8da19c20f5bbb0",
+    "timestamp": 1784879951,
+    "from": "0x1c3b25019ed4e4876e7af7903cc3e1e23287c337",
+    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "asset": "USDC",
+    "amountUsd": 1954082.1508,
+    "classification": "redeem",
+    "confidence": "high",
+    "reason": "sent to redeem/burn sink"
+  },
+  {
+    "chain": "ethereum",
+    "txHash": "0x5114314d2284b45c9a1f9eb8b7b284bd17a23cedf1d72d63529ca88b5c5fdc59",
+    "timestamp": 1784879927,
+    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
+    "to": "0x424323d25d30c687bdf79bb333da1d41c0373f37",
+    "asset": "USDC",
+    "amountUsd": 3058112.17,
+    "classification": "rebalance",
+    "confidence": "low",
+    "reason": "holds only stablecoins (USDe, USDC, USDT)"
+  },
+  {
+    "chain": "ethereum",
     "txHash": "0x06169a1ec102b4917ebd189dc0af832ee434e44b81cd76d9af1033e8b9ce9a98",
     "timestamp": 1784875883,
     "from": "0x1c3b25019ed4e4876e7af7903cc3e1e23287c337",
@@ -645,7 +813,7 @@
     "amountUsd": 1099799.14,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC)"
+    "reason": "holds only stablecoins (USDe)"
   },
   {
     "chain": "ethereum",
@@ -789,7 +957,7 @@
     "amountUsd": 1527659.01,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC)"
   },
   {
     "chain": "ethereum",
@@ -813,7 +981,7 @@
     "amountUsd": 2829999.2,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC)"
   },
   {
     "chain": "ethereum",
@@ -837,7 +1005,7 @@
     "amountUsd": 2579999.2,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC)"
   },
   {
     "chain": "ethereum",
@@ -1029,7 +1197,7 @@
     "amountUsd": 1826231.02,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -1101,7 +1269,7 @@
     "amountUsd": 1464928.23,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -1161,7 +1329,7 @@
     "amountUsd": 2204999.23,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC)"
   },
   {
     "chain": "ethereum",
@@ -1185,7 +1353,7 @@
     "amountUsd": 1979999.23,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC)"
   },
   {
     "chain": "ethereum",
@@ -2695,9 +2863,9 @@
     "to": "0x4f31e05967a312414ff42115ba6de54d56f08f80",
     "asset": "USDC",
     "amountUsd": 1999999.21,
-    "classification": "external",
+    "classification": "rebalance",
     "confidence": "low",
-    "reason": "destination has no Ethena-custody signal"
+    "reason": "holds only stablecoins (USDe, USDT)"
   },
   {
     "chain": "ethereum",
@@ -4845,7 +5013,7 @@
     "amountUsd": 3675683.83,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -5097,7 +5265,7 @@
     "amountUsd": 1726174.6,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -5181,7 +5349,7 @@
     "amountUsd": 1588221.49,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -5253,7 +5421,7 @@
     "amountUsd": 1461299.26,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -5301,7 +5469,7 @@
     "amountUsd": 1344517.56,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -5373,7 +5541,7 @@
     "amountUsd": 1237071.05,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -5433,7 +5601,7 @@
     "amountUsd": 1138212.81,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -5457,7 +5625,7 @@
     "amountUsd": 1049638.41,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC)"
+    "reason": "holds only stablecoins (USDe)"
   },
   {
     "chain": "ethereum",
@@ -5553,7 +5721,7 @@
     "amountUsd": 1047261.88,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -6525,7 +6693,7 @@
     "amountUsd": 1499999.24,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC)"
+    "reason": "holds only stablecoins (USDe)"
   },
   {
     "chain": "ethereum",
@@ -6585,7 +6753,7 @@
     "amountUsd": 1399999.27,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC)"
+    "reason": "holds only stablecoins (USDe)"
   },
   {
     "chain": "ethereum",
@@ -6669,7 +6837,7 @@
     "amountUsd": 1299999.28,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC)"
+    "reason": "holds only stablecoins (USDe)"
   },
   {
     "chain": "ethereum",
@@ -6693,7 +6861,7 @@
     "amountUsd": 1189999.24,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC)"
+    "reason": "holds only stablecoins (USDe)"
   },
   {
     "chain": "ethereum",
@@ -6717,7 +6885,7 @@
     "amountUsd": 1099999.27,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC)"
+    "reason": "holds only stablecoins (USDe)"
   },
   {
     "chain": "ethereum",
@@ -6741,7 +6909,7 @@
     "amountUsd": 1024298.91,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC)"
+    "reason": "holds only stablecoins (USDe)"
   },
   {
     "chain": "ethereum",
@@ -7089,7 +7257,7 @@
     "amountUsd": 1162614.14,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -7101,7 +7269,7 @@
     "amountUsd": 1999999.27,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -7185,7 +7353,7 @@
     "amountUsd": 1843604.95,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -8973,7 +9141,7 @@
     "amountUsd": 1893040.69,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDtb, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC, USDtb)"
   },
   {
     "chain": "ethereum",
@@ -9631,9 +9799,9 @@
     "to": "0x23878914efe38d27c4d67ab83ed1b93a74d4086a",
     "asset": "USDT",
     "amountUsd": 54988958.25267,
-    "classification": "external",
+    "classification": "rebalance",
     "confidence": "low",
-    "reason": "destination has no Ethena-custody signal"
+    "reason": "holds only stablecoins (USDtb, USDT)"
   },
   {
     "chain": "ethereum",
@@ -9751,9 +9919,9 @@
     "to": "0x9f37491eb1b5fb9df25dd4c4443164e91dbbad17",
     "asset": "USDC",
     "amountUsd": 5000000,
-    "classification": "external",
+    "classification": "rebalance",
     "confidence": "low",
-    "reason": "destination has no Ethena-custody signal"
+    "reason": "holds only stablecoins (USDC)"
   },
   {
     "chain": "ethereum",
@@ -10425,7 +10593,7 @@
     "amountUsd": 22000000,
     "classification": "external",
     "confidence": "low",
-    "reason": "destination has no Ethena-custody signal"
+    "reason": "destination holds no tokens"
   },
   {
     "chain": "ethereum",
@@ -11071,9 +11239,9 @@
     "to": "0x2c106367ec891c1d7de2d2c3cf5f369845f5db1e",
     "asset": "USDtb",
     "amountUsd": 9999997.9,
-    "classification": "rebalance",
+    "classification": "external",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDT)"
+    "reason": "destination has no Ethena-custody signal"
   },
   {
     "chain": "ethereum",
@@ -11157,7 +11325,7 @@
     "amountUsd": 2597138.73,
     "classification": "rebalance",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDe, USDC, USDT)"
+    "reason": "holds only stablecoins (USDe, USDC)"
   },
   {
     "chain": "ethereum",
@@ -11527,9 +11695,9 @@
     "to": "0x3700749a3377ec1e73be540be012e013de5b5aca",
     "asset": "USDT",
     "amountUsd": 10000000,
-    "classification": "external",
+    "classification": "rebalance",
     "confidence": "low",
-    "reason": "destination has no Ethena-custody signal"
+    "reason": "holds only stablecoins (USDC, USDT)"
   },
   {
     "chain": "ethereum",
@@ -13543,9 +13711,9 @@
     "to": "0x9f37491eb1b5fb9df25dd4c4443164e91dbbad17",
     "asset": "USDC",
     "amountUsd": 2700000,
-    "classification": "external",
+    "classification": "rebalance",
     "confidence": "low",
-    "reason": "destination has no Ethena-custody signal"
+    "reason": "holds only stablecoins (USDC)"
   },
   {
     "chain": "ethereum",
@@ -13879,9 +14047,9 @@
     "to": "0xce84449a8ebec019ac110a4b6662e55d0fd9f228",
     "asset": "USDT",
     "amountUsd": 221999990,
-    "classification": "external",
+    "classification": "rebalance",
     "confidence": "low",
-    "reason": "destination holds no tokens"
+    "reason": "holds only stablecoins (USDT)"
   },
   {
     "chain": "ethereum",
@@ -14359,9 +14527,9 @@
     "to": "0x00669bf9ba4eaab1bbd301c1ccdf69932f521049",
     "asset": "USDT",
     "amountUsd": 30000000,
-    "classification": "rebalance",
+    "classification": "external",
     "confidence": "low",
-    "reason": "holds only stablecoins (USDC, USDT)"
+    "reason": "destination has no Ethena-custody signal"
   },
   {
     "chain": "ethereum",
@@ -16495,378 +16663,6 @@
     "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
     "asset": "USDT",
     "amountUsd": 1400329.5,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xf23412f00385fe7e54ff35c4547e3a8044e5023cdba00dc6bd7d93cb804231d8",
-    "timestamp": 1777186319,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1400342.25,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xcf942f8d06630fe0062fdbc6ef69b7148578f7a26ab3ba4dec0c98b6b8bdc1ff",
-    "timestamp": 1777186295,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 1400342.25,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x692eff20dbc0282eff399fed08878bf7844a5fb9e8f04a14e95533a16c6d269f",
-    "timestamp": 1777179059,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1570939.223,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xc8c8879ef63a0d02b1401fa675c1b1306062232e152b9d9c654946fb85288251",
-    "timestamp": 1777179035,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 1200297.27,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x94fd8ae4566469449eed828ed7fb649ee58455e20d82eb8dd6a28e13535c87ec",
-    "timestamp": 1777173551,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 2147261.5994,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x1b8c6fcc9909b1d6a488cfbcf94f01a946eaf67ddccc5b4bf629ae75f3041212",
-    "timestamp": 1777173527,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0xfa4fc4ec2f81a4897743c5b4f45907c02ce06199",
-    "asset": "USDT",
-    "amountUsd": 1718445.86,
-    "classification": "rebalance",
-    "confidence": "low",
-    "reason": "holds only stablecoins (USDC, USDT)"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x96097bcd8c1c91afbfd052233b248c4f5a5cf6085948e9479904c5e06d852104",
-    "timestamp": 1777171319,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 5929398.66,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x792ebca09798fab667c0ac0054e3ed472f47ac57d0cc7e19df94fbae10cd9b36",
-    "timestamp": 1777171295,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0xfa4fc4ec2f81a4897743c5b4f45907c02ce06199",
-    "asset": "USDT",
-    "amountUsd": 5929398.66,
-    "classification": "rebalance",
-    "confidence": "low",
-    "reason": "holds only stablecoins (USDC, USDT)"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x0007daacfa5101ed7028438d940efe36ab4e892ffaa31fb202cd17f3ead2ee42",
-    "timestamp": 1777171235,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 4994998.88,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x0545f00f3bfeaba9807ed8d9866177316992a95b8c0013f2870081fed30a4e91",
-    "timestamp": 1777171223,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0xfa4fc4ec2f81a4897743c5b4f45907c02ce06199",
-    "asset": "USDT",
-    "amountUsd": 4994998.88,
-    "classification": "rebalance",
-    "confidence": "low",
-    "reason": "holds only stablecoins (USDC, USDT)"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x8011f82d4b841badb2864440bd08ec25d6ee257129538c37d91c22f2ca3a1e12",
-    "timestamp": 1777168751,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 2052480.1046,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x8c36e0a97cae081900ec2b3abe438d253cac9311a67bb105c09466308109eaaf",
-    "timestamp": 1777168727,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 1854322.71,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xaa353f0c51c01b7f8bc3cd786e435fc49dfa766bc6d592624496e005d4b8f22f",
-    "timestamp": 1777163567,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1501145.28,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xc88ea20cae74cb4eaddb42a4454841b7f6e5cc60be9a3e48a6567310d8fa3c78",
-    "timestamp": 1777163555,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 1501145.28,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xd99c38f11c8366aca4ac3b4f0374277cdabb88571436dbca20157b746474c46c",
-    "timestamp": 1777162559,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1568528.216,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x3d2386b5ad0c36fee13670ab9a89b30a55e28dfc52b75e859cc93b499c6c913f",
-    "timestamp": 1777162547,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 1501057.73,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xdf6c0c92f1a9b8b56b68e3dcb78e7b498989ad63d6dbce5a7337b00b7dbcb179",
-    "timestamp": 1777145819,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1255817.988,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x213c5512646a6dbf99adb3f3680886757a2c6a1ebd1c6bbcf6ade86e4b9d3ef2",
-    "timestamp": 1777140239,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1853878.038,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xd8cd62e1be74663bb8b5ebd6f4ea8bb950ab41e22ad9c3797ab32ac9c3ac9bdf",
-    "timestamp": 1777140215,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 1500788.14,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x6b36bf5a049f1f9399b4bdc3f67a810cdf4268c2819337e0d83f8176b7cdea8a",
-    "timestamp": 1777139039,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1853888.832,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x82859d611776585969d8a8b6bae48e3c83ce608c9514fc812a71e893d1b0a5ac",
-    "timestamp": 1777139015,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 1500721.13,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xc5644d05fc1385ed6a9e449f9fa466123be0860b04cdb97d72eb5baab19c5c30",
-    "timestamp": 1777138187,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1855846.194,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x15c52917837f601aaf08635a1035337c74fb47440a7bcccdf421b0fe33101d0c",
-    "timestamp": 1777138175,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 1500628.17,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x4929fb3f2a46823f4bc1ba73948cedc4422b6bdabed0ebc71d8f68ffc7190b68",
-    "timestamp": 1777132079,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1500458.79,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x8c5161156d8e87e0b9543461a46fed156b926e75d54395d7da82511308a2aeaf",
-    "timestamp": 1777132055,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 1500458.79,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xf7366f5482f23d66e299c4b79df9d59e0a5a805e10b58a07017960a8a4278fcd",
-    "timestamp": 1777124159,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1985015.39,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xcd04ab0b975aeb10a4c99965445662f1d0a78987e4a1253df241e9134d968b03",
-    "timestamp": 1777124147,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x531e08e19e54ea655822d62f160e27af727b6e9f",
-    "asset": "USDT",
-    "amountUsd": 1985015.39,
-    "classification": "rebalance",
-    "confidence": "low",
-    "reason": "holds only stablecoins (USDC, USDT)"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xe062810fa151050a58c23075c7376f7613f991b3aff4a8f5196cab8e692b01a4",
-    "timestamp": 1777108739,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 1596750.1,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x5ccec81c8704f413737d46655d9b6905c7ddb7f8e5105f82582ab9ce85ed7234",
-    "timestamp": 1777108715,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 1596750.1,
-    "classification": "external",
-    "confidence": "low",
-    "reason": "destination holds no tokens"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0x717fa52e512ef925ba305c7d200a1939f579b7d955b048ef146719017f36655d",
-    "timestamp": 1777105019,
-    "from": "0xc7a455f687d1ed5d4d7edcc7563488c7e573d548",
-    "to": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "asset": "USDT",
-    "amountUsd": 2764386.9447,
-    "classification": "redeem",
-    "confidence": "high",
-    "reason": "sent to redeem/burn sink"
-  },
-  {
-    "chain": "ethereum",
-    "txHash": "0xc4ad2c6fa98b2a5cc9481ffb4dd4e8d24a4e2287a33f7fa8eef6126a6bfa7df3",
-    "timestamp": 1777104995,
-    "from": "0xe3490297a08d6fc8da46edb7b6142e4f461b62d3",
-    "to": "0x9374a55a7d9c1c9116ee8ad3689d2b5ff1bdef0d",
-    "asset": "USDT",
-    "amountUsd": 2638061.95,
     "classification": "external",
     "confidence": "low",
     "reason": "destination holds no tokens"
