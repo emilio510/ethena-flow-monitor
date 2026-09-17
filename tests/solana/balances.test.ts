@@ -378,3 +378,63 @@ describe("getEthenaSolanaIdleBalances — canonical-mint guard", () => {
     expect(stacRow?.approx).toBe(true)
   })
 })
+
+// ── JAAA: priced by Chainlink NAV, never by the global Alchemy symbol lookup ──
+// Regression for 2026-09-17: Alchemy by-symbol "JAAA" resolved to an unrelated
+// token at $50.64 (stamped 2026-08-19) and the dashboard showed $11.70B of JAAA
+// against Ethena's $242M. The canonical mint was right; the price source was not.
+const JAAA_MINT = "AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG"
+const JAAA_RAW = BigInt("230928054590000") // 230,928,054.59 JAAA (6 dp)
+const JAAA_NAV = 1.049803
+const JAAA_WRONG_SYMBOL_PRICE = 50.644252220941404
+
+function mockJaaaWallet(opts: { nav: Map<string, number>; bySymbol: Map<string, number> }) {
+  vi.doMock("@/lib/solana/rpc", () => ({
+    getTokenBalancesByOwner: vi.fn(async (owner: string) =>
+      owner === FAQ ? [{ mint: JAAA_MINT, rawAmount: JAAA_RAW, decimals: 6 }] : [],
+    ),
+  }))
+  vi.doMock("@/lib/solana/das", () => ({
+    fetchAssetIdentities: vi.fn(async () =>
+      new Map([[JAAA_MINT, { symbol: "JAAA", name: "Janus Henderson Anemoy AAA CLO Fund" }]]),
+    ),
+  }))
+  vi.doMock("@/lib/onchain/prices", () => ({
+    fetchPricesBySymbol: vi.fn(async () => opts.bySymbol),
+  }))
+  vi.doMock("@/lib/onchain/chainlink-nav", () => ({
+    fetchChainlinkNavPrices: vi.fn(async () => opts.nav),
+  }))
+  vi.doMock("@/lib/solana/prices", () => ({
+    fetchJupiterPrices: vi.fn(async () => new Map()),
+  }))
+}
+
+describe("getEthenaSolanaIdleBalances — JAAA priced by Chainlink NAV", () => {
+  it("uses the NAV feed and ignores a wrong by-symbol price for the same ticker", async () => {
+    mockJaaaWallet({
+      nav: new Map([["JAAA", JAAA_NAV]]),
+      bySymbol: new Map([["JAAA", JAAA_WRONG_SYMBOL_PRICE]]),
+    })
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+    const jaaa = res.rows.find((r) => r.symbol === "JAAA")
+    expect(jaaa, "JAAA should appear as an idle row").toBeDefined()
+    expect(jaaa?.totalUsd).toBeCloseTo(230_928_054.59 * JAAA_NAV, -3) // ≈ $242.4M
+    expect(jaaa!.totalUsd).toBeLessThan(300_000_000)
+    expect(res.failures).toHaveLength(0)
+  })
+
+  it("excludes JAAA + records a failure when the NAV feed is missing, even if by-symbol has a price", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => {})
+    mockJaaaWallet({
+      nav: new Map(),
+      bySymbol: new Map([["JAAA", JAAA_WRONG_SYMBOL_PRICE]]),
+    })
+    const { getEthenaSolanaIdleBalances } = await import("@/lib/solana/balances")
+    const res = await getEthenaSolanaIdleBalances()
+    expect(res.rows.find((r) => r.symbol === "JAAA")).toBeUndefined()
+    expect(res.failures.some((f) => f.source === "price:JAAA" && /NAV/.test(f.reason))).toBe(true)
+    expect(warn).toHaveBeenCalled()
+  })
+})

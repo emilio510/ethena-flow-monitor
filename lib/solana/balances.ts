@@ -7,8 +7,10 @@ import {
   SOLANA_PEG_MINTS,
   SOLANA_DENY_MINTS,
   SOLANA_RWA_MINTS,
+  SOLANA_RWA_NAV_FEEDS,
 } from "@/config/solana-known-mints"
 import { fetchPricesBySymbol } from "@/lib/onchain/prices"
+import { fetchChainlinkNavPrices } from "@/lib/onchain/chainlink-nav"
 import { fetchJupiterPrices } from "./prices"
 import { fetchAssetIdentities } from "./das"
 import { getTokenBalancesByOwner } from "./rpc"
@@ -133,13 +135,25 @@ export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
       .filter((s): s is string => s !== undefined),
   )]
 
-  const symbolPrices =
-    autoSymbols.length > 0
-      ? await fetchPricesBySymbol(autoSymbols).catch((err) => {
+  // Symbols with a Chainlink NAV feed are priced from the feed ONLY; the global
+  // by-symbol lookup is never consulted for them (ticker collisions — see
+  // SOLANA_RWA_NAV_FEEDS).
+  const navFeeds = Object.fromEntries(
+    Object.entries(SOLANA_RWA_NAV_FEEDS).filter(([sym]) =>
+      autoSymbols.some((s) => s.toUpperCase() === sym),
+    ),
+  )
+  const bySymbolOnly = autoSymbols.filter((s) => !(s.toUpperCase() in SOLANA_RWA_NAV_FEEDS))
+
+  const [symbolPrices, navPrices] = await Promise.all([
+    bySymbolOnly.length > 0
+      ? fetchPricesBySymbol(bySymbolOnly).catch((err) => {
           failures.push({ source: "alchemy-prices-by-symbol", reason: reasonOf(err) })
           return new Map<string, number>()
         })
-      : new Map<string, number>()
+      : Promise.resolve(new Map<string, number>()),
+    fetchChainlinkNavPrices(navFeeds),
+  ])
 
   // ── 5. Value each held entry, aggregate idle rows + per-wallet totals.
   const bySymbol = new Map<string, { usd: number; approx: boolean }>()
@@ -220,12 +234,14 @@ export async function getEthenaSolanaIdleBalances(): Promise<SolanaIdleResult> {
       }
       // ─────────────────────────────────────────────────────────────────────
 
-      const price = symbolPrices.get(sym)
+      const viaNav = sym in SOLANA_RWA_NAV_FEEDS
+      const price = viaNav ? navPrices.get(sym) : symbolPrices.get(sym)
       if (price === undefined) {
+        const source = viaNav ? "Chainlink NAV" : "by-symbol"
         console.warn(
-          `[ethena-flow-monitor] no by-symbol price for ${identity.symbol} (${mint}) — excluding`,
+          `[ethena-flow-monitor] no ${source} price for ${identity.symbol} (${mint}) — excluding`,
         )
-        failures.push({ source: `price:${identity.symbol}`, reason: "missing by-symbol price" })
+        failures.push({ source: `price:${identity.symbol}`, reason: `missing ${source} price` })
         continue
       }
 

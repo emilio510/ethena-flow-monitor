@@ -53,3 +53,17 @@ export const SOLANA_RWA_MINTS: Record<string, string> = {
   STAC: "u49MwZqu4bHRHRsciaBarHK7JZDYGxuaNnwyMBdEKYk",
   JAAA: "AAAJXeGjpKu7W3X4QTSU4pm1Wbj4G2LPcdg7A6xJLLyG",
 }
+
+/**
+ * Chainlink NAV feeds (Ethereum mainnet) for RWA symbols in SOLANA_RWA_MINTS.
+ * A symbol listed here is priced ONLY from its feed — never from the global
+ * Alchemy by-symbol lookup, which has no network qualifier and on 2026-09-17
+ * resolved "JAAA" to an unrelated token at $50.64 (48x the real NAV, +$11.4B
+ * on the backing total). Feed missing/stale → the holding is excluded and a
+ * failure is recorded, never valued at the wrong price.
+ * Source: Chainlink reference-data-directory, feeds-mainnet, "JAAA NAV".
+ * STAC has no Chainlink NAV feed as of 2026-09-17 and stays on by-symbol.
+ */
+export const SOLANA_RWA_NAV_FEEDS: Record<string, `0x${string}`> = {
+  JAAA: "0x3BbccB2301759D2e4A5692bA72DAb4b75dC43B1a",
+}
