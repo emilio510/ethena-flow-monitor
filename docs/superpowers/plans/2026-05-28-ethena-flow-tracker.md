@@ -1304,7 +1304,7 @@ Note the change from `set -euo pipefail` to `set -uo pipefail`: dropping `-e` le
 Run: `cd ~/Projects/ethena-flow-monitor && npx tsx --env-file=.env.local scripts/refresh-flows.ts`
 Expected: console prints `✓ N flows, M discovered wallets` with N ≥ 3 (today's three RLUSD rebalances appear, classified `rebalance`/`high` because their destinations are now in `ETHENA_XRPL_WALLETS`). `data/ethena-flows.json` is now populated; verify the three known RLUSD flows are present with `classification: "rebalance"`.
 
-If `.env.local` does not exist or lacks `ALCHEMY_KEY`, create/append it: `ALCHEMY_KEY=cxTQANuSJZ1FB8Q2TL4N6` (the project's archive-enabled key). Confirm with `grep ALCHEMY_KEY .env.local`.
+If `.env.local` does not exist or lacks `ALCHEMY_KEY`, create/append it: `ALCHEMY_KEY=<your Alchemy key>` (the project's archive-enabled key). Confirm with `grep ALCHEMY_KEY .env.local`.
 
 - [ ] **Step 9: Commit**
 
